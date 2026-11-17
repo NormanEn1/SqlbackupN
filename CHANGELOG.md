@@ -4,6 +4,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+### Cambiado
+- Los enlaces a las capturas del README llevan `?v=<huella>` (generado por `tools/Capture-Screenshots.ps1`, también con
+  `-LinksOnly`): al regenerar una imagen cambia su dirección y ya no se muestra la versión antigua guardada en caché.
+
 ## [0.3.0] - 2026-11-17
 
 ### Agregado

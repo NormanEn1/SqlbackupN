@@ -22,38 +22,38 @@ Las imágenes usan **datos ficticios de demostración**. Se regeneran con
 
 **Panel principal** — lista de jobs con su último estado, configuración en tarjetas e historial:
 
-![Panel principal](docs/screenshots/01-panel-principal.png)
+![Panel principal](docs/screenshots/01-panel-principal.png?v=dc2e6f4d)
 
 **Bienvenida** — sin jobs, la aplicación guía hacia el primero:
 
-![Bienvenida](docs/screenshots/04-bienvenida.png)
+![Bienvenida](docs/screenshots/04-bienvenida.png?v=28c61c1d)
 
 **Job con advertencia** (falló la copia a un destino secundario) y **job con fallo** (el motivo se ve en el historial):
 
-![Job con advertencia](docs/screenshots/02-job-con-advertencia.png)
-![Job con fallo](docs/screenshots/03-job-con-fallo.png)
+![Job con advertencia](docs/screenshots/02-job-con-advertencia.png?v=fe363920)
+![Job con fallo](docs/screenshots/03-job-con-fallo.png?v=256a78ce)
 
 ### Editor de jobs
 
 Todas las opciones del job se administran desde el editor, organizadas por pestañas:
 
-![Editor: general y servidor](docs/screenshots/05-editor-general.png)
-![Editor: programación](docs/screenshots/06-editor-programacion.png)
-![Editor: destinos](docs/screenshots/07-editor-destinos.png)
-![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png)
-![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png)
+![Editor: general y servidor](docs/screenshots/05-editor-general.png?v=001f01c0)
+![Editor: programación](docs/screenshots/06-editor-programacion.png?v=9d70e7a7)
+![Editor: destinos](docs/screenshots/07-editor-destinos.png?v=54b68dc6)
+![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png?v=f246a7c1)
+![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png?v=2b9d3e4f)
 
 **Validación en vivo** — cada dato se comprueba mientras se escribe; no se puede guardar con errores y el
 resumen indica en qué pestaña está cada problema (también al abrir un `jobs.json` escrito a mano):
 
-![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png)
-![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png)
-![Nuevo job](docs/screenshots/12-editor-nuevo-job.png)
+![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png?v=e153f59d)
+![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png?v=bf16e6ce)
+![Nuevo job](docs/screenshots/12-editor-nuevo-job.png?v=4623e594)
 
 **Destino Google Drive** — credenciales de su proyecto de Google Cloud, conexión de la cuenta con un clic (autorización una sola vez en el navegador) y carpeta de destino; el servicio sube después una copia por HTTPS:
 
-![Google Drive conectado](docs/screenshots/13-editor-google-drive.png)
-![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png)
+![Google Drive conectado](docs/screenshots/13-editor-google-drive.png?v=0f96aa13)
+![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png?v=13197bad)
 
 ## Componentes
 

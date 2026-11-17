@@ -66,3 +66,6 @@ deben llevar `ToolTip`.
    aplicar color y negrita al encabezado con `TextElement.*` dentro de la plantilla.
 4. Todo control interactivo debe ser alcanzable con teclado y tener texto o `ToolTip` accesible.
 5. Tras un cambio visual, regenerar las capturas con `tools/Capture-Screenshots.ps1` y revisarlas.
+   El script añade a los enlaces del README y de `docs/*.md` un sufijo `?v=<huella>` (8 primeros caracteres del
+   SHA-256 de cada imagen): al cambiar la imagen cambia su dirección y GitHub/navegadores no muestran la versión
+   anterior en caché. Para recalcular solo los enlaces: `tools\Capture-Screenshots.ps1 -LinksOnly`.

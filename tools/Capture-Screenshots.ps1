@@ -8,6 +8,12 @@
   editor de jobs (pestaña por pestaña, usando UI Automation). No toca la configuración real
   de %ProgramData%. Requiere haber compilado la solución.
 
+.PARAMETER LinksOnly
+  No abre la aplicación ni captura nada: solo reescribe en README.md y docs\*.md los enlaces a docs\screenshots\*.png
+  añadiendo "?v=<huella>" (8 primeros caracteres del SHA-256 de la imagen). Así, cuando una imagen cambia, su
+  dirección cambia y navegadores y CDN no muestran la versión anterior guardada en caché. Se ejecuta solo al
+  terminar una captura normal.
+
 .PARAMETER Exe
   Ruta de SqlBackupN.exe. Por defecto, la compilación Debug de la carpeta del repositorio.
 
@@ -17,7 +23,8 @@
 #>
 param(
     [string]$Repo = (Split-Path -Parent $PSScriptRoot),
-    [string]$Exe = ""
+    [string]$Exe = "",
+    [switch]$LinksOnly   # no captura nada: solo actualiza los enlaces de los .md con la huella de cada imagen
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +42,30 @@ public static class NativeWin {
 }
 "@
 [void][NativeWin]::SetProcessDPIAware()
+
+# ---------------------------------------------------------------- Enlaces con huella (evita imágenes en caché)
+function Update-ImageLinks {
+    $shots = Join-Path $Repo "docs\screenshots"
+    $docs = @(Join-Path $Repo "README.md") + @(Get-ChildItem (Join-Path $Repo "docs") -Filter *.md -File | ForEach-Object FullName)
+    $hashes = @{}
+    foreach ($png in Get-ChildItem $shots -Filter *.png) {
+        $hashes[$png.Name] = (Get-FileHash $png.FullName -Algorithm SHA256).Hash.Substring(0, 8).ToLowerInvariant()
+    }
+    foreach ($doc in $docs) {
+        $text = [IO.File]::ReadAllText($doc)
+        $updated = $text
+        foreach ($name in $hashes.Keys) {
+            $pattern = "(screenshots/" + [regex]::Escape($name) + ")(\?v=[0-9a-f]+)?"
+            $updated = [regex]::Replace($updated, $pattern, ('$1?v=' + $hashes[$name]))
+        }
+        if ($updated -ne $text) {
+            [IO.File]::WriteAllText($doc, $updated, (New-Object System.Text.UTF8Encoding($false)))
+            Write-Host "Enlaces actualizados: $doc"
+        }
+    }
+}
+
+if ($LinksOnly) { Update-ImageLinks; return }
 
 if (-not $Exe) { $Exe = Join-Path $Repo "src\SqlBackupN.App\bin\Debug\net9.0-windows\SqlBackupN.exe" }
 if (-not (Test-Path $Exe)) { throw "No se encontró $Exe. Ejecute 'dotnet build SqlBackupN.sln' primero." }
@@ -265,3 +296,6 @@ Invoke-Scenario "08" @($jobNube) (New-EditorAction "Editar" "^Editar job" @(
 
 Invoke-Scenario "09" @($jobNubeSin) (New-EditorAction "Editar" "^Editar job" @(
     @{ tab = "Destinos"; scroll = $true; name = "14-editor-google-drive-sin-conectar" }))
+
+# Los enlaces de los .md llevan la huella de cada imagen para que no se muestre una versión antigua en caché.
+Update-ImageLinks
