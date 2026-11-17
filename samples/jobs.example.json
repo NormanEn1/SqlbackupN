@@ -1,0 +1,41 @@
+[
+  {
+    "id": "5b1b0f0e-3c52-4f3e-9f0f-0b6d2a1c7a11",
+    "name": "Ventas nocturno",
+    "enabled": true,
+    "createdUtc": "2026-11-17T00:00:00Z",
+    "connection": {
+      "server": ".\\SQL2019",
+      "useWindowsAuthentication": true,
+      "trustServerCertificate": true
+    },
+    "databases": {
+      "mode": "AllUserDatabases",
+      "exclude": [ "BaseDePruebas" ]
+    },
+    "steps": [
+      { "id": "a0000000-0000-0000-0000-000000000001", "type": "Full", "cron": "0 22 * * 0", "enabled": true },
+      { "id": "a0000000-0000-0000-0000-000000000002", "type": "Differential", "cron": "0 22 * * 1-6", "enabled": true },
+      { "id": "a0000000-0000-0000-0000-000000000003", "type": "TransactionLog", "cron": "*/15 * * * *", "enabled": true }
+    ],
+    "destinations": [
+      { "name": "Disco local", "kind": "Folder", "path": "D:\\Backups" },
+      { "name": "NAS oficina", "kind": "Folder", "path": "\\\\nas01\\backups\\sql" }
+    ],
+    "options": {
+      "compression": true,
+      "checksum": true,
+      "copyOnly": false,
+      "verifyAfterBackup": true,
+      "commandTimeoutSeconds": 0,
+      "pathTemplate": "{Server}\\{Database}\\{Type}\\{Database}_{Type}_{Timestamp}"
+    },
+    "retention": { "keepDays": 30, "keepLast": 3 },
+    "notifications": {
+      "webhookUrl": "",
+      "onSuccess": false,
+      "onWarning": true,
+      "onFailure": true
+    }
+  }
+]

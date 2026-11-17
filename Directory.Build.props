@@ -1,0 +1,16 @@
+<Project>
+  <!-- Configuración común a todos los proyectos de SQL Backup N -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Product>SQL Backup N</Product>
+    <Company>Centinela Appliance</Company>
+    <Authors>Centinela Appliance</Authors>
+    <Copyright>Copyright (c) 2026 Centinela Appliance</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

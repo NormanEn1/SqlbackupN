@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    # Windows: la GUI (WPF) y el servicio de Windows solo compilan allí.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - run: dotnet restore SqlBackupN.sln
+      - run: dotnet build SqlBackupN.sln --no-restore -c Release
+      - run: dotnet test SqlBackupN.sln --no-build -c Release
