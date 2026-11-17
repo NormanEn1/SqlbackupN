@@ -14,6 +14,23 @@ Software libre (MIT) de **Centinela Appliance**.
 - **Avisos** por webhook (Teams, Slack u otros) cuando algo falla.
 - **Interfaz gráfica** para ver jobs, historial y ejecutar al instante, y **línea de comandos** pensada para scripts, con salida JSON y códigos de salida definidos.
 
+## Capturas
+
+Las imágenes usan **datos ficticios de demostración**. Se regeneran con
+`tools/Capture-Screenshots.ps1` (compile antes la solución).
+
+**Panel principal** — lista de jobs con su último estado, configuración en tarjetas e historial:
+
+![Panel principal](docs/screenshots/01-panel-principal.png)
+
+**Job con advertencia** — el backup existe, pero falló la copia a un destino secundario:
+
+![Job con advertencia](docs/screenshots/02-job-con-advertencia.png)
+
+**Job con fallo** — el motivo del error se muestra en el propio historial:
+
+![Job con fallo](docs/screenshots/03-job-con-fallo.png)
+
 ## Componentes
 
 | Proyecto | Qué es |
