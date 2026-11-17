@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ViewModels sin dependencia de WPF: se pueden probar y reutilizar en otra interfaz. -->
+  <PropertyGroup>
+    <RootNamespace>SqlBackupN.Presentation</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsNotAsErrors>CS1591</WarningsNotAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SqlBackupN.Core\SqlBackupN.Core.csproj" />
+  </ItemGroup>
+</Project>

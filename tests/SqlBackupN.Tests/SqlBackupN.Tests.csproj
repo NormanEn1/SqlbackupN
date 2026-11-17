@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SqlBackupN.Core\SqlBackupN.Core.csproj" />
+    <ProjectReference Include="..\..\src\SqlBackupN.Presentation\SqlBackupN.Presentation.csproj" />
   </ItemGroup>
 
 </Project>

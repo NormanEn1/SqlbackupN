@@ -4,17 +4,26 @@
 
 .DESCRIPTION
   Crea datos FICTICIOS de demostración (jobs e historial) en una carpeta temporal, abre la
-  interfaz con SQLBACKUPN_DATA apuntando a esa carpeta, captura la ventana y la cierra.
-  No toca la configuración real de %ProgramData%. Requiere haber compilado la solución.
+  interfaz con SQLBACKUPN_DATA apuntando a esa carpeta y captura la ventana principal y el
+  editor de jobs (pestaña por pestaña, usando UI Automation). No toca la configuración real
+  de %ProgramData%. Requiere haber compilado la solución.
+
+.PARAMETER Exe
+  Ruta de SqlBackupN.exe. Por defecto, la compilación Debug de la carpeta del repositorio.
 
 .EXAMPLE
   dotnet build SqlBackupN.sln
   powershell -ExecutionPolicy Bypass -File tools\Capture-Screenshots.ps1
 #>
-param([string]$Repo = (Split-Path -Parent $PSScriptRoot))
+param(
+    [string]$Repo = (Split-Path -Parent $PSScriptRoot),
+    [string]$Exe = ""
+)
 
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
@@ -27,12 +36,12 @@ public static class NativeWin {
 "@
 [void][NativeWin]::SetProcessDPIAware()
 
-$exe = Join-Path $Repo "src\SqlBackupN.App\bin\Debug\net9.0-windows\SqlBackupN.exe"
-if (-not (Test-Path $exe)) { throw "No se encontró $exe. Ejecute 'dotnet build SqlBackupN.sln' primero." }
+if (-not $Exe) { $Exe = Join-Path $Repo "src\SqlBackupN.App\bin\Debug\net9.0-windows\SqlBackupN.exe" }
+if (-not (Test-Path $Exe)) { throw "No se encontró $Exe. Ejecute 'dotnet build SqlBackupN.sln' primero." }
 $outDir = Join-Path $Repo "docs\screenshots"
 New-Item -ItemType Directory $outDir -Force | Out-Null
 
-# ---------- Datos ficticios ----------
+# ---------------------------------------------------------------- Datos ficticios
 $today = (Get-Date).Date
 function Utc($daysAgo, $hour, $minute = 0) {
     $today.AddDays(-$daysAgo).AddHours($hour).AddMinutes($minute).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -58,6 +67,7 @@ function New-Job($id, $name, $server, [string[]]$dbNames, $steps, $dests, $retDa
 $idVentas = "11111111-1111-1111-1111-111111111111"
 $idConta  = "22222222-2222-2222-2222-222222222222"
 $idLogs   = "33333333-3333-3333-3333-333333333333"
+$idRota   = "44444444-4444-4444-4444-444444444444"
 
 $jobVentas = New-Job $idVentas "Ventas nocturno" "SRV-DEMO\SQL2019" @() `
     @(@("Full", "0 22 * * 0"), @("Differential", "0 22 * * 1-6"), @("TransactionLog", "*/15 * * * *")) `
@@ -68,6 +78,24 @@ $jobConta = New-Job $idConta "Contabilidad" "SRV-DEMO\SQL2019" @("Contabilidad",
 $jobLogs = New-Job $idLogs "Inventario (logs)" "SRV-DEMO\SQL2019" @("Inventario") `
     @(,@("TransactionLog", "*/30 * * * *")) `
     @(,@("Disco local", "D:\Backups")) 7 ""
+# Job escrito a mano con errores: sirve para mostrar la validación del editor.
+$jobRota = New-Job $idRota "Tesorería (revisar)" "SRV-DEMO\SQL2019" @("Tesoreria") `
+    @(@("Full", "99 25 * * *"), @("Differential", "0 22 * * 1-6")) `
+    @(,@("Carpeta local", "Backups\Tesoreria")) 30 "no-es-una-url"
+
+# Job con una copia en Google Drive (conectada) y otro con Drive sin conectar.
+$driveOk = [ordered]@{ name = "Google Drive"; kind = "GoogleDrive"; path = ""
+    drive = [ordered]@{ clientId = "123456789012-demo.apps.googleusercontent.com"; protectedClientSecret = "x"
+                        protectedRefreshToken = "x"; accountEmail = "respaldos@centinela.example"; folderName = "SQL Backup N" } }
+$driveSin = [ordered]@{ name = "Google Drive"; kind = "GoogleDrive"; path = ""
+    drive = [ordered]@{ clientId = ""; protectedClientSecret = $null; protectedRefreshToken = $null
+                        accountEmail = $null; folderName = "SQL Backup N" } }
+$jobNube = New-Job "55555555-5555-5555-5555-555555555555" "Respaldo en la nube" "SRV-DEMO\SQL2019" @("Contabilidad") `
+    @(,@("Full", "0 23 * * *")) @(,@("Disco local", "D:\Backups")) 30 "https://hooks.example.test/aviso"
+$jobNube.destinations = @($jobNube.destinations) + @($driveOk)
+$jobNubeSin = New-Job "66666666-6666-6666-6666-666666666666" "Nube sin conectar" "SRV-DEMO\SQL2019" @("Contabilidad") `
+    @(,@("Full", "0 23 * * *")) @(,@("Disco local", "D:\Backups")) 30 ""
+$jobNubeSin.destinations = @($jobNubeSin.destinations) + @($driveSin)
 
 function New-Result($db, $status, $sizeMb, $seconds, $error = $null, $warnings = @()) {
     [ordered]@{
@@ -85,58 +113,155 @@ function New-Rec($id, $name, $daysAgo, $hour, $type, $status, $results) {
 }
 
 $history = @()
-# Ventas: todo correcto
 $history += New-Rec $idVentas "Ventas nocturno" 0 7  "TransactionLog" "Succeeded" @((New-Result "Ventas" "Succeeded" 12 3), (New-Result "Compras" "Succeeded" 4 2))
 $history += New-Rec $idVentas "Ventas nocturno" 1 22 "Differential"   "Succeeded" @((New-Result "Ventas" "Succeeded" 310 41), (New-Result "Compras" "Succeeded" 95 18))
 $history += New-Rec $idVentas "Ventas nocturno" 2 22 "Differential"   "Succeeded" @((New-Result "Ventas" "Succeeded" 298 39), (New-Result "Compras" "Succeeded" 90 17))
 $history += New-Rec $idVentas "Ventas nocturno" 3 22 "Full"           "Succeeded" @((New-Result "Ventas" "Succeeded" 2150 212), (New-Result "Compras" "Succeeded" 640 96))
-# Contabilidad: advertencia reciente (falló la copia al NAS)
 $warn = "No se pudo copiar a 'NAS oficina': el recurso de red no está disponible."
 $history += New-Rec $idConta "Contabilidad" 1 23 "Full" "Warning"   @((New-Result "Contabilidad" "Warning" 880 94 $null @($warn)), (New-Result "Nomina" "Warning" 120 21 $null @($warn)))
 $history += New-Rec $idConta "Contabilidad" 2 23 "Full" "Succeeded" @((New-Result "Contabilidad" "Succeeded" 874 92), (New-Result "Nomina" "Succeeded" 118 20))
 $history += New-Rec $idConta "Contabilidad" 3 23 "Full" "Succeeded" @((New-Result "Contabilidad" "Succeeded" 870 91), (New-Result "Nomina" "Succeeded" 117 20))
-# Inventario: fallos de log
 $err = "BACKUP LOG no es válido: la base 'Inventario' usa el modelo de recuperación SIMPLE."
 $history += New-Rec $idLogs "Inventario (logs)" 0 8 "TransactionLog" "Failed" @(New-Result "Inventario" "Failed" 0 1 $err)
 $history += New-Rec $idLogs "Inventario (logs)" 0 7 "TransactionLog" "Failed" @(New-Result "Inventario" "Failed" 0 1 $err)
 
-$scenarios = @(
-    @{ file = "01-panel-principal";   order = @($jobVentas, $jobConta, $jobLogs) },
-    @{ file = "02-job-con-advertencia"; order = @($jobConta, $jobVentas, $jobLogs) },
-    @{ file = "03-job-con-fallo";     order = @($jobLogs, $jobVentas, $jobConta) }
-)
+# ---------------------------------------------------------------- Utilidades de captura
+function Save-WindowShot([IntPtr]$hwnd, [string]$name) {
+    $rect = New-Object NativeWin+RECT
+    [void][NativeWin]::GetWindowRect($hwnd, [ref]$rect)
+    $w = $rect.Right - $rect.Left; $h = $rect.Bottom - $rect.Top
+    $bmp = New-Object System.Drawing.Bitmap $w, $h
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $hdc = $g.GetHdc()
+    [void][NativeWin]::PrintWindow($hwnd, $hdc, 2)   # 2 = PW_RENDERFULLCONTENT
+    $g.ReleaseHdc($hdc); $g.Dispose()
+    $path = Join-Path $outDir "$name.png"
+    $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+    Write-Host "OK $name ($w x $h)"
+}
+
+function Find-ByName($root, [string]$name) {
+    $cond = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::NameProperty), $name
+    $deadline = (Get-Date).AddSeconds(10)
+    do {
+        $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+        if ($el) { return $el }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+    throw "No se encontró el control '$name'."
+}
+
+function Invoke-Button($root, [string]$name) {
+    $el = Find-ByName $root $name
+    $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+}
+
+function Select-Tab($root, [string]$name) {
+    $el = Find-ByName $root $name
+    $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Start-Sleep -Milliseconds 700
+}
+
+function Scroll-ToBottom($root) {
+    $cond = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::IsScrollPatternAvailableProperty), $true
+    foreach ($el in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+        $sp = $el.GetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern)
+        if ($sp.Current.VerticallyScrollable) {
+            $sp.SetScrollPercent([System.Windows.Automation.ScrollPattern]::NoScroll, 100)
+            Start-Sleep -Milliseconds 600
+            return
+        }
+    }
+}
+
+function Wait-Dialog([IntPtr]$mainHandle, [string]$pattern) {
+    # WPF expone los diálogos modales como ventanas descendientes de su propietaria.
+    $main = [System.Windows.Automation.AutomationElement]::FromHandle($mainHandle)
+    $cond = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty), ([System.Windows.Automation.ControlType]::Window)
+    $deadline = (Get-Date).AddSeconds(20)
+    do {
+        foreach ($w in $main.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+            if ($w.Current.Name -match $pattern) { return $w }
+        }
+        Start-Sleep -Milliseconds 300
+    } while ((Get-Date) -lt $deadline)
+    throw "No apareció la ventana '$pattern'."
+}
 
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-foreach ($s in $scenarios) {
-    $dir = Join-Path $env:TEMP "sqlbackupn-shot-$($s.file)"
+function Invoke-Scenario($file, $jobs, $action) {
+    $dir = Join-Path $env:TEMP "sqlbackupn-shot-$file"
     Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory $dir | Out-Null
-    [IO.File]::WriteAllText((Join-Path $dir "jobs.json"), (ConvertTo-Json -InputObject @($s.order) -Depth 8), $utf8)
-    $lines = $history | ForEach-Object { ConvertTo-Json -InputObject $_ -Depth 8 -Compress }
-    [IO.File]::WriteAllLines((Join-Path $dir "history.jsonl"), $lines, $utf8)
+    if ($jobs.Count -gt 0) {
+        [IO.File]::WriteAllText((Join-Path $dir "jobs.json"), (ConvertTo-Json -InputObject @($jobs) -Depth 8), $utf8)
+        $lines = $history | ForEach-Object { ConvertTo-Json -InputObject $_ -Depth 8 -Compress }
+        [IO.File]::WriteAllLines((Join-Path $dir "history.jsonl"), $lines, $utf8)
+    }
 
     $env:SQLBACKUPN_DATA = $dir
-    $proc = Start-Process $exe -PassThru
+    $proc = Start-Process $Exe -PassThru
     try {
         $deadline = (Get-Date).AddSeconds(25)
         do { Start-Sleep -Milliseconds 300; $proc.Refresh() } while ($proc.MainWindowHandle -eq 0 -and (Get-Date) -lt $deadline)
-        if ($proc.MainWindowHandle -eq 0) { throw "La ventana no apareció ($($s.file))." }
+        if ($proc.MainWindowHandle -eq 0) { throw "La ventana no apareció ($file)." }
         Start-Sleep -Seconds 3   # deja cargar jobs e historial
-
-        $rect = New-Object NativeWin+RECT
-        [void][NativeWin]::GetWindowRect($proc.MainWindowHandle, [ref]$rect)
-        $w = $rect.Right - $rect.Left; $h = $rect.Bottom - $rect.Top
-        $bmp = New-Object System.Drawing.Bitmap $w, $h
-        $g = [System.Drawing.Graphics]::FromImage($bmp)
-        $hdc = $g.GetHdc()
-        [void][NativeWin]::PrintWindow($proc.MainWindowHandle, $hdc, 2)   # 2 = PW_RENDERFULLCONTENT
-        $g.ReleaseHdc($hdc); $g.Dispose()
-        $path = Join-Path $outDir "$($s.file).png"
-        $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
-        Write-Host "OK $path ($w x $h)"
+        & $action $proc
     }
     finally {
         if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
         Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+# ---------------------------------------------------------------- Ventana principal
+$main = {
+    param($name)
+    $n = $name
+    { param($proc) Save-WindowShot $proc.MainWindowHandle $n }.GetNewClosure()
+}
+
+Invoke-Scenario "01" @($jobVentas, $jobConta, $jobLogs) (& $main "01-panel-principal")
+Invoke-Scenario "02" @($jobConta, $jobVentas, $jobLogs) (& $main "02-job-con-advertencia")
+Invoke-Scenario "03" @($jobLogs, $jobVentas, $jobConta) (& $main "03-job-con-fallo")
+Invoke-Scenario "04" @() (& $main "04-bienvenida")
+
+# ---------------------------------------------------------------- Editor de jobs
+# Abre el editor con el botón indicado, fotografía las pestañas pedidas y lo cierra con Cancelar.
+function New-EditorAction($button, $dialogPattern, $shots) {
+    $b = $button; $p = $dialogPattern; $s = $shots
+    {
+        param($proc)
+        $root = [System.Windows.Automation.AutomationElement]::FromHandle($proc.MainWindowHandle)
+        Invoke-Button $root $b
+        $dialog = Wait-Dialog $proc.MainWindowHandle $p
+        Start-Sleep -Seconds 2
+        $dialog = Wait-Dialog $proc.MainWindowHandle $p   # se vuelve a buscar: evita tomar la ventana a medio abrir
+        foreach ($shot in $s) {
+            if ($shot.tab) { Select-Tab $dialog $shot.tab }
+            if ($shot.scroll) { Scroll-ToBottom $dialog }
+            Save-WindowShot ([IntPtr]$dialog.Current.NativeWindowHandle) $shot.name
+        }
+        Invoke-Button $dialog "Cancelar"
+    }.GetNewClosure()
+}
+
+Invoke-Scenario "05" @($jobVentas, $jobConta, $jobLogs) (New-EditorAction "Editar" "^Editar job" @(
+    @{ tab = "General y servidor";   name = "05-editor-general" },
+    @{ tab = "Programación";         name = "06-editor-programacion" },
+    @{ tab = "Destinos";             name = "07-editor-destinos" },
+    @{ tab = "Opciones de backup";   name = "08-editor-opciones" },
+    @{ tab = "Retención y avisos";   name = "09-editor-retencion-avisos" }))
+
+Invoke-Scenario "06" @($jobRota, $jobVentas) (New-EditorAction "Editar" "^Editar job" @(
+    @{ tab = "Programación";         name = "10-editor-validacion-programacion" },
+    @{ tab = "Destinos";             name = "11-editor-validacion-destinos" }))
+
+Invoke-Scenario "07" @($jobVentas) (New-EditorAction "Nuevo job" "^Nuevo job" @(
+    @{ tab = "General y servidor";   name = "12-editor-nuevo-job" }))
+
+Invoke-Scenario "08" @($jobNube) (New-EditorAction "Editar" "^Editar job" @(
+    @{ tab = "Destinos"; scroll = $true; name = "13-editor-google-drive" }))
+
+Invoke-Scenario "09" @($jobNubeSin) (New-EditorAction "Editar" "^Editar job" @(
+    @{ tab = "Destinos"; scroll = $true; name = "14-editor-google-drive-sin-conectar" }))

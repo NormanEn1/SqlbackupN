@@ -489,3 +489,6 @@ history.jsonl
 *.bak
 *.trn
 !samples/jobs.example.json
+
+# La plantilla ignora "*.app" (macOS) y coincide con la carpeta SqlBackupN.App
+!**/SqlBackupN.App/

@@ -18,6 +18,22 @@ public sealed record DueStep(BackupStep Step, bool Superseded);
 /// </summary>
 public static class ScheduleEvaluator
 {
+    /// <summary>Calcula las próximas <paramref name="count"/> ejecuciones (UTC) de una expresión cron.</summary>
+    /// <returns>Lista vacía si la expresión no es válida.</returns>
+    public static IReadOnlyList<DateTime> NextOccurrences(string cron, DateTime fromUtc, TimeZoneInfo zone, int count)
+    {
+        if (!CronExpression.TryParse(cron.Trim(), CronFormat.Standard, out var expression)) return [];
+
+        var result = new List<DateTime>(count);
+        var cursor = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc);
+        while (result.Count < count && expression.GetNextOccurrence(cursor, zone) is { } next)
+        {
+            result.Add(next);
+            cursor = next;
+        }
+        return result;
+    }
+
     /// <summary>Devuelve los pasos vencidos ordenados: Full, Differential, TransactionLog.</summary>
     /// <param name="job">Job a evaluar.</param>
     /// <param name="lastRunUtc">Fin (UTC) de la última ejecución de un paso, o null si nunca corrió.</param>

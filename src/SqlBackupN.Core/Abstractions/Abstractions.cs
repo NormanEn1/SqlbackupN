@@ -15,6 +15,51 @@ public sealed record BackupRequest(string Database, BackupType Type, string File
 /// <param name="SizeBytes">Tamaño en bytes.</param>
 public sealed record StoredFile(string Path, DateTime LastWriteUtc, long SizeBytes);
 
+/// <summary>Un archivo guardado en un destino remoto (para aplicar retención).</summary>
+/// <param name="Id">Identificador remoto (se usa para borrarlo).</param>
+/// <param name="Name">Nombre del archivo.</param>
+/// <param name="CreatedUtc">Fecha de creación (UTC).</param>
+/// <param name="SizeBytes">Tamaño en bytes.</param>
+public sealed record RemoteFile(string Id, string Name, DateTime CreatedUtc, long SizeBytes);
+
+/// <summary>
+/// Destino remoto (nube). El backup se escribe primero en una carpeta local y desde ahí se sube una copia;
+/// por eso un destino remoto nunca es el principal.
+/// </summary>
+public interface IRemoteStorage
+{
+    /// <summary>
+    /// Sube un archivo local. <paramref name="relativePath"/> incluye las subcarpetas y el nombre
+    /// (con <c>\</c> o <c>/</c>); las carpetas que falten se crean. Verifica la integridad al terminar.
+    /// </summary>
+    Task UploadAsync(DestinationConfig destination, string localFilePath, string relativePath, CancellationToken ct);
+
+    /// <summary>Lista los archivos con la extensión indicada de una carpeta (vacío si la carpeta no existe).</summary>
+    Task<IReadOnlyList<RemoteFile>> ListAsync(
+        DestinationConfig destination, string relativeDirectory, string extension, CancellationToken ct);
+
+    /// <summary>Borra definitivamente un archivo remoto.</summary>
+    Task DeleteAsync(DestinationConfig destination, RemoteFile file, CancellationToken ct);
+
+    /// <summary>
+    /// Comprueba la conexión y que la carpeta raíz exista (la crea si falta).
+    /// Devuelve un texto descriptivo para mostrar al usuario.
+    /// </summary>
+    Task<string> TestAsync(DestinationConfig destination, CancellationToken ct);
+}
+
+/// <summary>Resultado de conectar una cuenta de Google.</summary>
+/// <param name="RefreshToken">Token de actualización (en claro; el llamador debe cifrarlo).</param>
+/// <param name="Email">Correo de la cuenta, si se pudo obtener.</param>
+public sealed record GoogleAuthResult(string RefreshToken, string? Email);
+
+/// <summary>Conecta una cuenta de Google: abre el navegador para que el usuario autorice una sola vez.</summary>
+public interface IGoogleAuthorizer
+{
+    /// <summary>Ejecuta el flujo de autorización y devuelve el token de actualización.</summary>
+    Task<GoogleAuthResult> AuthorizeAsync(string clientId, string clientSecret, CancellationToken ct);
+}
+
 /// <summary>Habla con SQL Server: lista bases, ejecuta y verifica backups.</summary>
 public interface IBackupExecutor
 {
@@ -33,6 +78,13 @@ public interface IFileStore
 {
     /// <summary>Crea el directorio si no existe.</summary>
     void EnsureDirectory(string path);
+
+    /// <summary>
+    /// Comprueba que se puede crear y borrar un archivo en el directorio (lo crea si no existe).
+    /// Lanza una excepción con el motivo si no es posible. Se prueba con el usuario actual,
+    /// que puede diferir de la cuenta del servicio.
+    /// </summary>
+    void VerifyWritable(string directory);
 
     /// <summary>Copia un archivo sobrescribiendo el destino.</summary>
     void Copy(string source, string destination);

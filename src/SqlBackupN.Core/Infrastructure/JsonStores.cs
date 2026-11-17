@@ -38,6 +38,8 @@ public static class JsonDefaults
     private static JsonSerializerOptions Create(bool indented) => new()
     {
         WriteIndented = indented,
+        // Se escribe en camelCase (como en la documentación); al leer se aceptan ambas formas.
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
         Converters = { new JsonStringEnumConverter() }
     };

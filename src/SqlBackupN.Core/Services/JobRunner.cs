@@ -7,12 +7,13 @@ namespace SqlBackupN.Core.Services;
 
 /// <summary>
 /// Orquesta la ejecución de un paso de un job: resuelve las bases, hace el backup en el
-/// destino primario, lo verifica, lo copia a los demás destinos, aplica retención,
-/// guarda el historial y avisa. Una falla en una base no detiene a las demás.
+/// destino primario (siempre una carpeta), lo verifica, lo copia a los demás destinos (carpetas o
+/// Google Drive), aplica retención, guarda el historial y avisa. Una falla en una base no detiene a las demás.
 /// </summary>
 public sealed class JobRunner(
     IBackupExecutor executor,
     IFileStore files,
+    IRemoteStorage remote,
     IHistoryStore history,
     INotifier notifier,
     TimeProvider clock,
@@ -83,6 +84,9 @@ public sealed class JobRunner(
         {
             if (job.Destinations.Count == 0)
                 throw new InvalidOperationException("El job no tiene destinos configurados.");
+            if (job.Destinations[0].Kind != DestinationKind.Folder)
+                throw new InvalidOperationException(
+                    "El destino principal debe ser una carpeta (SQL Server escribe allí el backup).");
 
             var localNow = clock.GetLocalNow().DateTime;
             var relative = PathTemplate.Render(
@@ -109,9 +113,9 @@ public sealed class JobRunner(
             // A partir de aquí el backup ya existe: los fallos son advertencias, no errores.
             foreach (var (destination, index) in job.Destinations.Select((d, i) => (d, i)))
             {
-                var target = Path.Combine(destination.Path, relative);
-                if (index > 0) TryCopy(primaryPath, target, destination, result);
-                ApplyRetention(job, type, destination, target, result);
+                ct.ThrowIfCancellationRequested();
+                if (index > 0) await CopyAsync(destination, primaryPath, relative, result, ct);
+                await ApplyRetentionAsync(job, type, destination, relative, result, ct);
             }
         }
         catch (OperationCanceledException)
@@ -129,30 +133,56 @@ public sealed class JobRunner(
         return result;
     }
 
-    private void TryCopy(string source, string target, DestinationConfig destination, DatabaseBackupResult result)
+    private async Task CopyAsync(
+        DestinationConfig destination, string source, string relative, DatabaseBackupResult result, CancellationToken ct)
     {
         try
         {
-            files.EnsureDirectory(Path.GetDirectoryName(target)!);
-            files.Copy(source, target);
+            if (destination.Kind == DestinationKind.GoogleDrive)
+            {
+                await remote.UploadAsync(destination, source, relative, ct);
+            }
+            else
+            {
+                var target = Path.Combine(destination.Path, relative);
+                files.EnsureDirectory(Path.GetDirectoryName(target)!);
+                files.Copy(source, target);
+            }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             AddWarning(result, $"No se pudo copiar a '{destination.Name}': {ex.Message}");
         }
     }
 
-    private void ApplyRetention(
-        BackupJob job, BackupType type, DestinationConfig destination, string target, DatabaseBackupResult result)
+    private async Task ApplyRetentionAsync(
+        BackupJob job, BackupType type, DestinationConfig destination, string relative,
+        DatabaseBackupResult result, CancellationToken ct)
     {
         try
         {
-            var directory = Path.GetDirectoryName(target)!;
-            var existing = files.List(directory, "*" + type.FileExtension());
-            var toDelete = RetentionPlanner.SelectFilesToDelete(existing, job.Retention, clock.GetUtcNow().UtcDateTime);
-            foreach (var file in toDelete) files.Delete(file.Path);
+            var now = clock.GetUtcNow().UtcDateTime;
+            var extension = type.FileExtension();
+
+            if (destination.Kind == DestinationKind.GoogleDrive)
+            {
+                var directory = Path.GetDirectoryName(relative) ?? string.Empty;
+                var remoteFiles = await remote.ListAsync(destination, directory, extension, ct);
+                // El planificador solo necesita fecha y tamaño; la "ruta" lleva el identificador remoto.
+                var known = remoteFiles.ToDictionary(f => f.Id);
+                var candidates = remoteFiles.Select(f => new StoredFile(f.Id, f.CreatedUtc, f.SizeBytes)).ToList();
+                foreach (var expired in RetentionPlanner.SelectFilesToDelete(candidates, job.Retention, now))
+                    await remote.DeleteAsync(destination, known[expired.Path], ct);
+            }
+            else
+            {
+                var directory = Path.GetDirectoryName(Path.Combine(destination.Path, relative))!;
+                var existing = files.List(directory, "*" + extension);
+                foreach (var file in RetentionPlanner.SelectFilesToDelete(existing, job.Retention, now))
+                    files.Delete(file.Path);
+            }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             AddWarning(result, $"No se pudo aplicar la retención en '{destination.Name}': {ex.Message}");
         }

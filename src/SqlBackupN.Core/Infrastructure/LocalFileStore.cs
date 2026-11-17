@@ -9,6 +9,15 @@ public sealed class LocalFileStore : IFileStore
     public void EnsureDirectory(string path) => Directory.CreateDirectory(path);
 
     /// <inheritdoc />
+    public void VerifyWritable(string directory)
+    {
+        Directory.CreateDirectory(directory);
+        var probe = Path.Combine(directory, $".sqlbackupn-test-{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(probe, "prueba");
+        File.Delete(probe);
+    }
+
+    /// <inheritdoc />
     public void Copy(string source, string destination) => File.Copy(source, destination, overwrite: true);
 
     /// <inheritdoc />

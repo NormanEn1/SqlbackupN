@@ -33,6 +33,7 @@ public class JobRunnerTests
         public List<string> Deleted { get; } = [];
         public bool FailCopy { get; set; }
         public void EnsureDirectory(string path) { }
+        public void VerifyWritable(string directory) { }
         public void Copy(string source, string destination)
         {
             if (FailCopy) throw new IOException("sin acceso");
@@ -75,7 +76,7 @@ public class JobRunnerTests
         var files = new FakeFiles();
         var history = new FakeHistory();
         var notifier = new FakeNotifier();
-        var runner = new JobRunner(exec, files, history, notifier, TimeProvider.System, NullLogger<JobRunner>.Instance);
+        var runner = new JobRunner(exec, files, new StubRemote(), history, notifier, TimeProvider.System, NullLogger<JobRunner>.Instance);
         return (runner, exec, files, history, notifier);
     }
 

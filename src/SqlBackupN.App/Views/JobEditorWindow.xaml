@@ -1,0 +1,467 @@
+<Window x:Class="SqlBackupN.App.Views.JobEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding Title}" Width="980" Height="860" MinWidth="800" MinHeight="600"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ================= Encabezado ================= -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrushSoft}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="28,20">
+                <Border Width="42" Height="42" CornerRadius="11" Background="{StaticResource PrimaryTintBrush}">
+                    <TextBlock Text="&#xE713;" Style="{StaticResource IconText}" FontSize="19"
+                               Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center"/>
+                </Border>
+                <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" Style="{StaticResource Heading}" FontSize="19"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                               Text="Defina qué respaldar, cuándo, dónde guardarlo y a quién avisar."/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <TabControl Grid.Row="1" Margin="24,18,24,0">
+
+            <!-- ============ General y servidor ============ -->
+            <TabItem Header="General y servidor">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                        <TextBlock Text="Nombre del job" Style="{StaticResource FieldLabel}" Margin="0,2,0,5"/>
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" MaxLength="100"/>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Name}"/>
+                        <CheckBox Content="Job habilitado (si se desmarca, no se programa)" IsChecked="{Binding Enabled}"
+                                  Margin="0,12,0,0"/>
+
+                        <TextBlock Text="Servidor o instancia SQL" Style="{StaticResource FieldLabel}" Margin="0,26,0,5"/>
+                        <TextBox Text="{Binding Server, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Ejemplos: .\SQL2019 · srv01 · srv01\INSTANCIA · srv01,1433"/>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Connection.Server}"/>
+
+                        <TextBlock Text="Autenticación" Style="{StaticResource FieldLabel}"/>
+                        <RadioButton GroupName="auth" Content="Windows (recomendada: usa la cuenta del servicio)"
+                                     IsChecked="{Binding UseWindowsAuthentication}" Margin="0,2,0,0"/>
+                        <RadioButton GroupName="auth" Content="Usuario y contraseña de SQL Server"
+                                     IsChecked="{Binding UseSqlAuthentication, Mode=OneWay}"
+                                     Checked="SqlAuth_Checked"/>
+
+                        <Border Margin="28,10,0,0" Padding="16,0,16,14" CornerRadius="8" Background="{StaticResource SurfaceAltBrush}"
+                                BorderBrush="{StaticResource BorderBrushSoft}" BorderThickness="1"
+                                IsEnabled="{Binding UseSqlAuthentication}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Usuario" Style="{StaticResource FieldLabel}" Margin="0,10,0,5"/>
+                                <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldError}"
+                                           Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Connection.UserName}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Contraseña" Style="{StaticResource FieldLabel}" Margin="0,10,0,5"/>
+                                <PasswordBox Grid.Row="1" Grid.Column="2" x:Name="PasswordInput" PasswordChanged="Password_Changed"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource FieldError}"
+                                           Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Connection.Password}"/>
+                                <TextBlock Grid.Row="3" Grid.ColumnSpan="3" Style="{StaticResource Hint}" Text="{Binding PasswordHint}"/>
+                            </Grid>
+                        </Border>
+
+                        <CheckBox Content="Confiar en el certificado del servidor (redes internas)"
+                                  IsChecked="{Binding TrustServerCertificate}" Margin="0,18,0,0"/>
+
+                        <Button Tag="&#xE839;" Content="Probar conexión" HorizontalAlignment="Left" Margin="0,22,0,0"
+                                Command="{Binding TestConnectionCommand}"/>
+                        <TextBlock Text="{Binding ConnectionTestResult}" Style="{StaticResource Hint}" FontSize="12.5"
+                                   Margin="0,8,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ Bases de datos ============ -->
+            <TabItem Header="Bases de datos">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                        <TextBlock Text="¿Qué bases se respaldan?" Style="{StaticResource FieldLabel}" Margin="0,2,0,5"/>
+                        <RadioButton GroupName="dbmode" IsChecked="{Binding IsAllDatabases}"
+                                     Content="Todas las bases de usuario (incluye las que se creen después)"/>
+                        <RadioButton GroupName="dbmode" IsChecked="{Binding IsExplicitDatabases}"
+                                     Content="Solo las que indique (incluye bases de sistema como msdb)"/>
+                        <StackPanel Margin="28,8,0,0" IsEnabled="{Binding IsExplicitDatabases}">
+                            <TextBox Text="{Binding NamesText, UpdateSourceTrigger=PropertyChanged}" Height="110"
+                                     AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
+                                     VerticalContentAlignment="Top"/>
+                            <TextBlock Style="{StaticResource Hint}" Text="Una base de datos por línea."/>
+                            <TextBlock Style="{StaticResource FieldError}"
+                                       Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Databases.Names}"/>
+                        </StackPanel>
+                        <RadioButton GroupName="dbmode" IsChecked="{Binding IsPatternDatabases}" Margin="0,14,0,0"
+                                     Content="Las bases cuyo nombre coincida con un patrón"/>
+                        <StackPanel Margin="28,8,0,0" IsEnabled="{Binding IsPatternDatabases}">
+                            <TextBox Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Text="* = cualquier texto, ? = un carácter. Ejemplo: Ventas* incluye Ventas y Ventas_2026."/>
+                            <TextBlock Style="{StaticResource FieldError}"
+                                       Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Databases.Pattern}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Excluir estas bases (en cualquier modo)" Style="{StaticResource FieldLabel}" Margin="0,28,0,5"/>
+                        <TextBox Text="{Binding ExcludeText, UpdateSourceTrigger=PropertyChanged}" Height="80"
+                                 AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"
+                                 VerticalContentAlignment="Top"/>
+                        <TextBlock Style="{StaticResource Hint}" Text="Una por línea. Opcional."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ Programación ============ -->
+            <TabItem Header="Programación">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14"
+                                   Text="Cada paso es un tipo de backup con su horario. El diferencial y el log necesitan un completo en el mismo job; si un completo coincide con un diferencial, se hace solo el completo."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <TextBlock Text="Planes rápidos" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Button Content="Completo diario" Margin="0,0,8,0"
+                                    Command="{Binding ApplyPlanCommand}" CommandParameter="DailyFull"/>
+                            <Button Content="Semanal + diferencial" Margin="0,0,8,0"
+                                    Command="{Binding ApplyPlanCommand}" CommandParameter="WeeklyFullDailyDifferential"/>
+                            <Button Content="Semanal + diferencial + log"
+                                    Command="{Binding ApplyPlanCommand}" CommandParameter="WeeklyFullDailyDifferentialAndLog"/>
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource ItemCard}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="200"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <ComboBox Grid.Column="0"
+                                                      ItemsSource="{Binding DataContext.StepTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                      SelectedValuePath="Value" SelectedValue="{Binding Type}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Label}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBox Grid.Column="1" Margin="10,0" FontFamily="Consolas"
+                                                     Text="{Binding Cron, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="minuto hora día-del-mes mes día-de-la-semana · ej.: 0 23 * * *"/>
+                                            <CheckBox Grid.Column="2" Content="Activo" IsChecked="{Binding Enabled}"
+                                                      VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <Button Grid.Column="3" Style="{StaticResource DangerButton}" Tag="&#xE74D;"
+                                                    Content="Quitar" Command="{Binding RemoveCommand}"/>
+                                            <StackPanel Grid.Row="1" Grid.ColumnSpan="4">
+                                                <TextBlock Style="{StaticResource Hint}" Text="{Binding NextRuns}" Margin="0,8,0,0"
+                                                           Visibility="{Binding NextRuns, Converter={StaticResource NotEmptyToVisibility}}"/>
+                                                <TextBlock Style="{StaticResource FieldError}" Text="{Binding Error}"
+                                                           Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Button Tag="&#xE710;" Content="Agregar paso" HorizontalAlignment="Left" Command="{Binding AddStepCommand}"/>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Steps}"/>
+                        <TextBlock Style="{StaticResource FieldWarning}"
+                                   Text="{Binding Warnings, Converter={StaticResource FieldMessage}, ConverterParameter=Steps}"/>
+                        <TextBlock Style="{StaticResource Hint}" Margin="0,20,0,0"
+                                   Text="Cron de 5 campos, en la hora local del equipo. Ejemplos: 0 23 * * * (diario 23:00) · 0 22 * * 0 (domingos 22:00) · */15 * * * * (cada 15 min)."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ Destinos ============ -->
+            <TabItem Header="Destinos">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                                   Text="El primer destino lo escribe SQL Server directamente (debe poder verlo ese servidor); los demás reciben una copia. Use rutas completas: D:\Backups o \\servidor\recurso. Google Drive solo puede ser una copia (el principal es siempre una carpeta)."/>
+                        <ItemsControl ItemsSource="{Binding Destinations}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource ItemCard}">
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                    <Button Style="{StaticResource GhostButton}" Tag="&#xE70E;" Margin="0,0,2,0"
+                                                            Command="{Binding MoveUpCommand}" ToolTip="Subir"/>
+                                                    <Button Style="{StaticResource GhostButton}" Tag="&#xE70D;" Margin="0,0,10,0"
+                                                            Command="{Binding MoveDownCommand}" ToolTip="Bajar"/>
+                                                    <Button Style="{StaticResource DangerButton}" Tag="&#xE74D;" Content="Quitar"
+                                                            Padding="12,5" Command="{Binding RemoveCommand}"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Role}" Style="{StaticResource SectionTitle}"
+                                                           VerticalAlignment="Center"/>
+                                            </DockPanel>
+                                            <TextBlock Text="Tipo de destino" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                            <ComboBox Width="300" HorizontalAlignment="Left"
+                                                      ItemsSource="{Binding Kinds}" SelectedValuePath="Value"
+                                                      SelectedValue="{Binding Kind}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Label}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <TextBlock Style="{StaticResource FieldError}" Text="{Binding KindError}"/>
+
+                                            <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" MaxLength="60"/>
+                                            <TextBlock Style="{StaticResource FieldError}" Text="{Binding NameError}"/>
+
+                                            <!-- Carpeta -->
+                                            <StackPanel Visibility="{Binding IsFolder, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="Carpeta" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right" Tag="&#xE73E;" Content="Probar" Margin="8,0,0,0"
+                                                            Command="{Binding TestCommand}"/>
+                                                    <Button DockPanel.Dock="Right" Tag="&#xE8B7;" Content="Examinar…" Margin="8,0,0,0"
+                                                            Command="{Binding BrowseCommand}"/>
+                                                    <TextBox Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}"/>
+                                                </DockPanel>
+                                                <TextBlock Style="{StaticResource FieldError}" Text="{Binding PathError}"/>
+                                            </StackPanel>
+
+                                            <!-- Google Drive (API oficial; no usa la unidad virtual G:) -->
+                                            <StackPanel Visibility="{Binding IsDrive, Converter={StaticResource BoolToVisibility}}">
+                                                <Grid Margin="0,2,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="14"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="ID de cliente de Google" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                                    <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldError}" Text="{Binding ClientIdError}"/>
+                                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Secreto de cliente" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                                    <PasswordBox Grid.Row="1" Grid.Column="2" PasswordChanged="DriveSecret_Changed"/>
+                                                    <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource FieldError}" Text="{Binding ClientSecretError}"/>
+                                                </Grid>
+                                                <TextBlock Style="{StaticResource Hint}" Text="{Binding SecretHint}"/>
+                                                <TextBlock Style="{StaticResource Hint}"
+                                                           Text="Cree las credenciales en Google Cloud (tipo «Aplicación de escritorio»). Guía paso a paso: docs/google-drive.md"/>
+
+                                                <TextBlock Text="Cuenta de Google" Style="{StaticResource FieldLabel}" Margin="0,16,0,5"/>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Tag="&#xE77B;" Content="Conectar con Google" Command="{Binding ConnectCommand}"/>
+                                                    <Button Style="{StaticResource GhostButton}" Tag="&#xE711;" Content="Desconectar" Margin="6,0,0,0"
+                                                            Command="{Binding DisconnectCommand}"
+                                                            Visibility="{Binding IsConnected, Converter={StaticResource BoolToVisibility}}"/>
+                                                    <Border Margin="12,0,0,0" VerticalAlignment="Center">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border" BasedOn="{StaticResource Chip}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource SuccessTintBrush}"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding AccountText}" FontSize="12" FontWeight="SemiBold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Style="{StaticResource Hint}" Text="{Binding ConnectResult}"
+                                                           Visibility="{Binding ConnectResult, Converter={StaticResource NotEmptyToVisibility}}"/>
+                                                <TextBlock Style="{StaticResource FieldError}" Text="{Binding AccountError}"/>
+
+                                                <TextBlock Text="Carpeta en Mi unidad" Style="{StaticResource FieldLabel}" Margin="0,16,0,5"/>
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right" Tag="&#xE73E;" Content="Probar" Margin="8,0,0,0"
+                                                            Command="{Binding TestCommand}"/>
+                                                    <TextBox Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}"/>
+                                                </DockPanel>
+                                                <TextBlock Style="{StaticResource Hint}"
+                                                           Text="Se crea sola si no existe (admite subcarpetas con /). Dentro se organiza por servidor, base y tipo."/>
+                                                <TextBlock Style="{StaticResource FieldError}" Text="{Binding FolderError}"/>
+                                            </StackPanel>
+
+                                            <TextBlock Style="{StaticResource Hint}" Text="{Binding TestResult}"
+                                                       Visibility="{Binding TestResult, Converter={StaticResource NotEmptyToVisibility}}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Tag="&#xE710;" Content="Agregar carpeta" Command="{Binding AddDestinationCommand}"/>
+                            <Button Tag="&#xE753;" Content="Agregar Google Drive" Margin="8,0,0,0"
+                                    Command="{Binding AddDriveDestinationCommand}"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Destinations}"/>
+                        <TextBlock Style="{StaticResource FieldWarning}"
+                                   Text="{Binding Warnings, Converter={StaticResource FieldMessage}, ConverterParameter=Destinations}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ Opciones ============ -->
+            <TabItem Header="Opciones de backup">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+                        <TextBlock Text="Opciones" Style="{StaticResource SectionTitle}"/>
+                        <CheckBox Content="Comprimir el backup (ahorra espacio y tiempo de copia)" IsChecked="{Binding Compression}" Margin="0,12,0,0"/>
+                        <CheckBox Content="Calcular sumas de comprobación (detecta corrupción)" IsChecked="{Binding Checksum}"/>
+                        <CheckBox Content="Verificar el backup al terminar (RESTORE VERIFYONLY)" IsChecked="{Binding VerifyAfterBackup}"/>
+                        <CheckBox Content="Solo copia (COPY_ONLY: no altera la cadena de backups; se ignora en diferenciales)" IsChecked="{Binding CopyOnly}"/>
+
+                        <TextBlock Text="Tiempo máximo por comando (segundos, 0 = sin límite)" Style="{StaticResource FieldLabel}" Margin="0,26,0,5"/>
+                        <TextBox Width="140" HorizontalAlignment="Left"
+                                 Text="{Binding TimeoutText, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Options.CommandTimeoutSeconds}"/>
+
+                        <TextBlock Text="Ruta y nombre de los archivos (plantilla, sin extensión)" Style="{StaticResource FieldLabel}" Margin="0,26,0,5"/>
+                        <TextBox FontFamily="Consolas" Text="{Binding NameTemplate, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Valores: {Server} {Database} {Type} {Date} {Time} {Timestamp}. Obligatorios: {Database} y {Timestamp}."/>
+                        <Border Background="{StaticResource SuccessTintBrush}" CornerRadius="6" Padding="10,7" Margin="0,10,0,0"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding PathPreview, Converter={StaticResource NotEmptyToVisibility}}">
+                            <TextBlock Text="{Binding PathPreview}" FontFamily="Consolas" FontSize="12"
+                                       Foreground="{StaticResource SuccessBrush}"/>
+                        </Border>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Options.PathTemplate}"/>
+                        <TextBlock Style="{StaticResource FieldWarning}"
+                                   Text="{Binding Warnings, Converter={StaticResource FieldMessage}, ConverterParameter=Options.PathTemplate}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============ Retención y avisos ============ -->
+            <TabItem Header="Retención y avisos">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+                        <TextBlock Text="Retención (por cada destino)" Style="{StaticResource SectionTitle}" FontSize="16"/>
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                   Text="Se borra un archivo solo si es más viejo que los días indicados Y no está entre los más recientes que se deben conservar. El backup más reciente nunca se borra."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <CheckBox Content="Borrar backups con más de" IsChecked="{Binding UseKeepDays}" VerticalAlignment="Center" Margin="0"/>
+                            <TextBox Width="80" Margin="12,0" IsEnabled="{Binding UseKeepDays}"
+                                     Text="{Binding KeepDaysText, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="días" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Retention.KeepDays}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <CheckBox Content="Conservar siempre al menos los" IsChecked="{Binding UseKeepLast}" VerticalAlignment="Center" Margin="0"/>
+                            <TextBox Width="80" Margin="12,0" IsEnabled="{Binding UseKeepLast}"
+                                     Text="{Binding KeepLastText, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Text="más recientes" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Retention.KeepLast}"/>
+                        <TextBlock Style="{StaticResource FieldWarning}"
+                                   Text="{Binding Warnings, Converter={StaticResource FieldMessage}, ConverterParameter=Retention}"/>
+
+                        <Rectangle Height="1" Fill="{StaticResource BorderBrushSoft}" Margin="0,28,0,24"/>
+
+                        <TextBlock Text="Avisos" Style="{StaticResource SectionTitle}" FontSize="16"/>
+                        <TextBlock Text="Webhook (Teams, Slack u otro servicio)" Style="{StaticResource FieldLabel}"/>
+                        <TextBox Text="{Binding WebhookUrl, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Style="{StaticResource Hint}" Text="Recibe un POST JSON {&quot;text&quot;: &quot;…&quot;}. Déjelo vacío para no enviar avisos."/>
+                        <TextBlock Style="{StaticResource FieldError}"
+                                   Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Notifications.WebhookUrl}"/>
+                        <TextBlock Style="{StaticResource FieldWarning}"
+                                   Text="{Binding Warnings, Converter={StaticResource FieldMessage}, ConverterParameter=Notifications.WebhookUrl}"/>
+                        <TextBlock Text="Avisar cuando…" Style="{StaticResource FieldLabel}" Margin="0,18,0,3"/>
+                        <CheckBox Content="hay un fallo" IsChecked="{Binding OnFailure}"/>
+                        <CheckBox Content="hay advertencias (p. ej. falló una copia secundaria)" IsChecked="{Binding OnWarning}"/>
+                        <CheckBox Content="todo sale bien" IsChecked="{Binding OnSuccess}"/>
+                        <TextBlock Style="{StaticResource FieldWarning}"
+                                   Text="{Binding Warnings, Converter={StaticResource FieldMessage}, ConverterParameter=Notifications}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- ================= Resumen de validación ================= -->
+        <Border Grid.Row="2" Margin="24,14,24,0" Style="{StaticResource Card}" Padding="12,10">
+            <Expander IsExpanded="True">
+                <Expander.Header>
+                    <Border Style="{StaticResource SummaryChip}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding SummaryIcon}" Style="{StaticResource SummaryChipText}" Margin="0,0,7,0"/>
+                            <TextBlock Text="{Binding SummaryText}" Style="{StaticResource SummaryChipText}"/>
+                        </StackPanel>
+                    </Border>
+                </Expander.Header>
+                <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Issues}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock TextWrapping="Wrap" Margin="0,2">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsError}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource DangerDarkBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="{Binding Icon, Mode=OneWay}"/>
+                                    <Run Text="{Binding Text, Mode=OneWay}"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Expander>
+        </Border>
+
+        <!-- ================= Botones ================= -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,16,24,20">
+            <Button Tag="&#xE711;" Content="Cancelar" IsCancel="True" Margin="0,0,10,0" MinWidth="110"
+                    Command="{Binding CancelCommand}"/>
+            <Button Style="{StaticResource PrimaryButton}" Tag="&#xE74E;" Content="Guardar" IsDefault="True"
+                    MinWidth="130" Command="{Binding SaveCommand}"/>
+        </StackPanel>
+    </Grid>
+</Window>

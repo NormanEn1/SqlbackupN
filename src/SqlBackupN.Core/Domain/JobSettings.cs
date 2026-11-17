@@ -55,7 +55,13 @@ public sealed class DatabaseSelection
 public enum DestinationKind
 {
     /// <summary>Carpeta local, unidad mapeada o ruta UNC.</summary>
-    Folder = 0
+    Folder = 0,
+
+    /// <summary>
+    /// Google Drive, mediante su API (sin depender de la unidad virtual <c>G:\</c>).
+    /// Solo puede ser una copia: el destino principal siempre es una carpeta.
+    /// </summary>
+    GoogleDrive = 1
 }
 
 /// <summary>Un lugar donde se guardan los backups.</summary>
@@ -67,8 +73,40 @@ public sealed class DestinationConfig
     /// <summary>Tipo de destino.</summary>
     public DestinationKind Kind { get; set; } = DestinationKind.Folder;
 
-    /// <summary>Carpeta raíz del destino. Debe ser visible para SQL Server si es el primero.</summary>
+    /// <summary>
+    /// Carpeta raíz del destino (solo <see cref="DestinationKind.Folder"/>).
+    /// Debe ser visible para SQL Server si es el primero.
+    /// </summary>
     public string Path { get; set; } = string.Empty;
+
+    /// <summary>Ajustes de Google Drive (solo <see cref="DestinationKind.GoogleDrive"/>).</summary>
+    public DriveSettings? Drive { get; set; }
+}
+
+/// <summary>
+/// Conexión con Google Drive. Se usa autorización de usuario (OAuth) con el permiso
+/// <c>drive.file</c>: la aplicación solo ve los archivos y carpetas que ella misma crea.
+/// Los secretos se guardan cifrados (DPAPI), nunca en texto plano.
+/// </summary>
+public sealed class DriveSettings
+{
+    /// <summary>ID de cliente OAuth (tipo "Aplicación de escritorio") de su proyecto de Google Cloud.</summary>
+    public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>Secreto del cliente OAuth, cifrado.</summary>
+    public string? ProtectedClientSecret { get; set; }
+
+    /// <summary>Token de actualización obtenido al conectar la cuenta, cifrado.</summary>
+    public string? ProtectedRefreshToken { get; set; }
+
+    /// <summary>Correo de la cuenta conectada (solo informativo).</summary>
+    public string? AccountEmail { get; set; }
+
+    /// <summary>
+    /// Carpeta raíz dentro de "Mi unidad" (puede ser una ruta con <c>/</c>). La aplicación la crea si no existe,
+    /// porque con el permiso <c>drive.file</c> no puede ver carpetas creadas a mano.
+    /// </summary>
+    public string FolderName { get; set; } = "SQL Backup N";
 }
 
 /// <summary>Opciones del backup y de su verificación.</summary>

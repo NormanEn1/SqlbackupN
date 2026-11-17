@@ -11,7 +11,12 @@ antes de saltársela.
 3. Las implementaciones concretas viven en `Infrastructure/`. Nada fuera de ahí usa `SqlClient`, `File.*`
    ni `HttpClient` directamente.
 4. Los ejecutables (`App`, `Service`, `Cli`) no contienen reglas de negocio: solo composición y presentación.
-5. La hora se obtiene con `TimeProvider`, nunca con `DateTime.Now`/`UtcNow` en el núcleo.
+   En la GUI, los view-models viven en `SqlBackupN.Presentation` **sin referencias a WPF**; las ventanas
+   (`App`) solo enlazan datos y no contienen lógica.
+5. Los servicios en la nube se usan **solo** a través de `IRemoteStorage` (y su autorización por `IGoogleAuthorizer`); nunca desde `JobRunner`, el editor ni las ventanas. Secretos y tokens: siempre cifrados con `ISecretProtector`, nunca en logs, historial ni mensajes de error.
+6. Toda regla sobre qué datos de un job son válidos va en `JobValidator` (y en `docs/validation.md`),
+   nunca en una ventana ni en un view-model.
+6. La hora se obtiene con `TimeProvider`, nunca con `DateTime.Now`/`UtcNow` en el núcleo.
 
 ## 2. Seguridad (no negociable)
 
@@ -31,7 +36,12 @@ antes de saltársela.
 4. Métodos pequeños y con una sola responsabilidad; sin números ni textos mágicos repetidos.
 5. Las excepciones se capturan solo donde se pueda hacer algo útil. Un fallo en una base **no** detiene las demás.
 6. Operaciones largas: `async` con `CancellationToken`.
-7. GUI: patrón MVVM. El *code-behind* solo inicializa la vista.
+7. GUI: patrón MVVM. El *code-behind* solo inicializa la vista (y adapta lo que WPF no permite enlazar,
+   como `PasswordBox`).
+8. Los comandos asíncronos usan `AsyncRelayCommand` (nunca `async void` propio): captura las excepciones
+   para que un fallo no cierre la aplicación.
+9. El aspecto visual sale de `Styles/Theme.xaml` y `Styles/Controls.xaml` (ver [design.md](design.md)): las ventanas no definen colores ni tipografías propias.
+10. Todo campo editable muestra su error junto al control y en el resumen; el botón *Guardar* se desactiva con errores.
 
 ## 4. Pruebas
 
