@@ -17,6 +17,9 @@ public interface IDialogService
     /// <summary>Muestra un mensaje informativo o de error.</summary>
     void ShowMessage(string title, string message);
 
+    /// <summary>Abre una dirección web en el navegador predeterminado.</summary>
+    void OpenUrl(string url);
+
     /// <summary>Abre el selector de carpetas. Devuelve la carpeta elegida o <c>null</c> si se cancela.</summary>
     string? PickFolder(string? initialDirectory);
 }

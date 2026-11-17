@@ -11,6 +11,6 @@
     <Authors>Centinela Appliance</Authors>
     <Copyright>Copyright (c) 2026 Centinela Appliance</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
   </PropertyGroup>
 </Project>

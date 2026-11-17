@@ -8,6 +8,9 @@
   editor de jobs (pestaña por pestaña, usando UI Automation). No toca la configuración real
   de %ProgramData%. Requiere haber compilado la solución.
 
+.PARAMETER Only
+  Códigos de escenario a ejecutar (01…09); sirve para repetir solo una parte. Los enlaces de los .md se recalculan igual.
+
 .PARAMETER LinksOnly
   No abre la aplicación ni captura nada: solo reescribe en README.md y docs\*.md los enlaces a docs\screenshots\*.png
   añadiendo "?v=<huella>" (8 primeros caracteres del SHA-256 de la imagen). Así, cuando una imagen cambia, su
@@ -24,10 +27,13 @@
 param(
     [string]$Repo = (Split-Path -Parent $PSScriptRoot),
     [string]$Exe = "",
+    [string[]]$Only = @(),   # solo estos escenarios, p. ej. -Only 05,08 (por defecto, todos)
     [switch]$LinksOnly   # no captura nada: solo actualiza los enlaces de los .md con la huella de cada imagen
 )
 
 $ErrorActionPreference = "Stop"
+# "-Only 05,08" llega como un solo texto cuando se usa -File: se separa por comas.
+$Only = @($Only | ForEach-Object { "$_" -split "," } | Where-Object { $_ })
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -115,9 +121,10 @@ $jobRota = New-Job $idRota "Tesorería (revisar)" "SRV-DEMO\SQL2019" @("Tesoreri
     @(,@("Carpeta local", "Backups\Tesoreria")) 30 "no-es-una-url"
 
 # Job con una copia en Google Drive (conectada) y otro con Drive sin conectar.
+# Las credenciales de Google son compartidas (google-client.json en la carpeta de datos), no van en el destino.
 $driveOk = [ordered]@{ name = "Google Drive"; kind = "GoogleDrive"; path = ""
-    drive = [ordered]@{ clientId = "123456789012-demo.apps.googleusercontent.com"; protectedClientSecret = "x"
-                        protectedRefreshToken = "x"; accountEmail = "respaldos@centinela.example"; folderName = "SQL Backup N" } }
+    drive = [ordered]@{ clientId = ""; protectedClientSecret = $null; protectedRefreshToken = "demo"
+                        accountEmail = "respaldos@centinela.example"; folderName = "SQL Backup N" } }
 $driveSin = [ordered]@{ name = "Google Drive"; kind = "GoogleDrive"; path = ""
     drive = [ordered]@{ clientId = ""; protectedClientSecret = $null; protectedRefreshToken = $null
                         accountEmail = $null; folderName = "SQL Backup N" } }
@@ -220,7 +227,8 @@ function Wait-Dialog([IntPtr]$mainHandle, [string]$pattern) {
 }
 
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-function Invoke-Scenario($file, $jobs, $action) {
+function Invoke-Scenario($file, $jobs, $action, [switch]$GoogleClient) {
+    if ($Only.Count -gt 0 -and $Only -notcontains $file) { return }
     $dir = Join-Path $env:TEMP "sqlbackupn-shot-$file"
     Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory $dir | Out-Null
@@ -228,6 +236,15 @@ function Invoke-Scenario($file, $jobs, $action) {
         [IO.File]::WriteAllText((Join-Path $dir "jobs.json"), (ConvertTo-Json -InputObject @($jobs) -Depth 8), $utf8)
         $lines = $history | ForEach-Object { ConvertTo-Json -InputObject $_ -Depth 8 -Compress }
         [IO.File]::WriteAllLines((Join-Path $dir "history.jsonl"), $lines, $utf8)
+    }
+
+    if ($GoogleClient) {
+        # Credenciales de Google de demostración, cifradas igual que la aplicación (DPAPI, ámbito equipo).
+        Add-Type -AssemblyName System.Security
+        $entropy = [Text.Encoding]::UTF8.GetBytes("SqlBackupN.v1")
+        $secret = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes("secreto-de-demostracion"), $entropy, "LocalMachine")
+        $client = [ordered]@{ clientId = "123456789012-demo.apps.googleusercontent.com"; protectedClientSecret = [Convert]::ToBase64String($secret) }
+        [IO.File]::WriteAllText((Join-Path $dir "google-client.json"), (ConvertTo-Json -InputObject $client), $utf8)
     }
 
     $env:SQLBACKUPN_DATA = $dir
@@ -292,9 +309,10 @@ Invoke-Scenario "07" @($jobVentas) (New-EditorAction "Nuevo job" "^Nuevo job" @(
     @{ tab = "General y servidor";   name = "12-editor-nuevo-job" }))
 
 Invoke-Scenario "08" @($jobNube) (New-EditorAction "Editar" "^Editar job" @(
-    @{ tab = "Destinos"; scroll = $true; name = "13-editor-google-drive" }))
+    @{ tab = "Destinos"; scroll = $true; name = "13-editor-google-drive" })) -GoogleClient
 
 Invoke-Scenario "09" @($jobNubeSin) (New-EditorAction "Editar" "^Editar job" @(
+    @{ tab = "Destinos"; name = "15-editor-google-credenciales" },
     @{ tab = "Destinos"; scroll = $true; name = "14-editor-google-drive-sin-conectar" }))
 
 # Los enlaces de los .md llevan la huella de cada imagen para que no se muestre una versión antigua en caché.

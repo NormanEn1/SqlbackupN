@@ -4,9 +4,27 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ## [Sin publicar]
 
+## [0.4.0] - 2026-11-17
+
+### Agregado
+- **Programación visual**: en lugar de escribir una expresión cron, cada paso se configura con una lista de **frecuencia**
+  (todos los días, días de la semana, cada pocas horas, cada pocos minutos, una vez al mes), **selectores numéricos** para hora, minuto
+  y día del mes, y **botones de día** (Lun…Dom). El cron queda como opción «Avanzado» y es lo único que se guarda, así que los
+  `jobs.json` existentes siguen funcionando. Cada horario se describe en palabras («De lunes a viernes a las 22:00») en el
+  editor y en el panel principal.
+- `ScheduleBuilder` (conversión cron ⇄ horario amigable y descripción), control `NumberSpinner` y botones de día.
+- **Google Drive más simple**: las credenciales de Google se piden **una sola vez** (recuadro «Credenciales de Google» con pasos
+  guiados y botones para abrir Google Cloud y la guía) y valen para todos los destinos; pueden venir incluidas con la aplicación
+  (`google-client.json` junto al ejecutable). `IGoogleClientProvider`.
+- Opción `-Only` y `-LinksOnly` en `tools/Capture-Screenshots.ps1`; los enlaces a las capturas llevan `?v=<huella>` para evitar
+  imágenes antiguas en caché.
+- 69 pruebas nuevas (263 en total).
+
 ### Cambiado
-- Los enlaces a las capturas del README llevan `?v=<huella>` (generado por `tools/Capture-Screenshots.ps1`, también con
-  `-LinksOnly`): al regenerar una imagen cambia su dirección y ya no se muestra la versión antigua guardada en caché.
+- El **destino principal es siempre una carpeta**: ya no se ofrece elegir el tipo en él (antes, elegir Google Drive allí producía
+  una cascada de errores). Google Drive solo se puede agregar como copia, una vez existe la carpeta principal.
+- Un destino de Drive sin credenciales muestra un único error claro en lugar de varios técnicos.
+- Los destinos de Drive creados con la versión 0.3 (con credenciales propias) siguen funcionando.
 
 ## [0.3.0] - 2026-11-17
 

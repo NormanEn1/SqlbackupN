@@ -62,13 +62,14 @@ public sealed class MainViewModel : ViewModelBase
         IFileStore files,
         IRemoteStorage remote,
         IGoogleAuthorizer authorizer,
+        IGoogleClientProvider googleClients,
         TimeProvider clock)
     {
         _jobStore = jobStore;
         _history = history;
         _runner = runner;
         _dialogs = dialogs;
-        _editorServices = new EditorServices(protector, executor, files, remote, authorizer, dialogs, clock);
+        _editorServices = new EditorServices(protector, executor, files, remote, authorizer, googleClients, dialogs, clock);
 
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(), onError: ShowError);
         NewJobCommand = new AsyncRelayCommand(() => EditAsync(JobFactory.CreateNew(), isNew: true), onError: ShowError);
@@ -162,7 +163,7 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>Texto de la tarjeta Programación.</summary>
     public string ScheduleText => Selected is { } s
         ? string.Join(Environment.NewLine,
-            s.Job.Steps.Select(x => $"{TypeOption.LabelOf(x.Type)}: {x.Cron}{(x.Enabled ? "" : " (desactivado)")}"))
+            s.Job.Steps.Select(x => $"{TypeOption.LabelOf(x.Type)}: {ScheduleBuilder.Describe(x.Cron) ?? x.Cron}{(x.Enabled ? "" : " (desactivado)")}"))
         : "";
 
     /// <summary>Texto de la tarjeta Retención.</summary>

@@ -67,6 +67,21 @@ internal sealed class StubRemote : IRemoteStorage
     }
 }
 
+/// <summary>Credenciales de Google compartidas simuladas (en memoria).</summary>
+internal sealed class StubGoogleClients : IGoogleClientProvider
+{
+    public GoogleClient? Default { get; set; }
+    public List<GoogleClient> Saved { get; } = [];
+
+    public GoogleClient? GetDefault() => Default;
+
+    public void SaveDefault(GoogleClient client)
+    {
+        Saved.Add(client);
+        Default = client;
+    }
+}
+
 /// <summary>Conexión con Google simulada: no abre ningún navegador.</summary>
 internal sealed class StubAuthorizer : IGoogleAuthorizer
 {
@@ -107,6 +122,7 @@ internal sealed class StubDialogs : IDialogService
     public Action<JobEditorViewModel>? OnEdit { get; set; }
     public bool ConfirmAnswer { get; set; }
     public string? FolderToPick { get; set; }
+    public List<string> OpenedUrls { get; } = [];
     public List<string> Messages { get; } = [];
     public int EditorsShown { get; private set; }
 
@@ -119,6 +135,7 @@ internal sealed class StubDialogs : IDialogService
 
     public bool Confirm(string title, string message) => ConfirmAnswer;
     public void ShowMessage(string title, string message) => Messages.Add(message);
+    public void OpenUrl(string url) => OpenedUrls.Add(url);
     public string? PickFolder(string? initialDirectory) => FolderToPick;
 }
 

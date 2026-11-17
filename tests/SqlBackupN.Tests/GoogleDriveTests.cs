@@ -120,9 +120,30 @@ public class DriveValidationTests
         }));
 
         var fields = ErrorFields(job);
-        Assert.Contains("Destinations[1].Drive.ClientId", fields);
-        Assert.Contains("Destinations[1].Drive.ClientSecret", fields);
+        Assert.Contains("Destinations[1].Drive.Client", fields);
         Assert.Contains("Destinations[1].Drive.Account", fields);
+    }
+
+    [Fact]
+    public void Shared_google_credentials_make_the_per_destination_ones_unnecessary()
+    {
+        var job = Job(Drive(d =>
+        {
+            d.ClientId = "";
+            d.ProtectedClientSecret = null;
+        }));
+
+        Assert.DoesNotContain(JobValidator.Validate(job, null, googleClientAvailable: true),
+            i => i.Severity == IssueSeverity.Error);
+    }
+
+    [Fact]
+    public void Own_client_id_without_secret_is_an_error_even_with_shared_credentials()
+    {
+        var job = Job(Drive(d => d.ProtectedClientSecret = null));
+
+        Assert.Contains(JobValidator.Validate(job, null, googleClientAvailable: true),
+            i => i.Field == "Destinations[1].Drive.Client" && i.Severity == IssueSeverity.Error);
     }
 
     [Theory]
@@ -296,7 +317,7 @@ public class DriveJobRunnerTests
     }
 }
 
-/// <summary>Editor: destinos de Google Drive, conexión de la cuenta y protección de secretos.</summary>
+/// <summary>Editor: destinos de Google Drive, credenciales compartidas (una sola vez) y conexión de la cuenta.</summary>
 public class DriveEditorTests
 {
     private static BackupJob BaseJob() => new()
@@ -308,15 +329,19 @@ public class DriveEditorTests
         Notifications = new NotificationSettings { WebhookUrl = "https://hooks.example.test/x" }
     };
 
-    private sealed record Rig(JobEditorViewModel Editor, StubRemote Remote, StubAuthorizer Authorizer);
+    private sealed record Rig(
+        JobEditorViewModel Editor, StubRemote Remote, StubAuthorizer Authorizer, StubGoogleClients Clients, StubDialogs Dialogs);
 
-    private static Rig Create(BackupJob? job = null)
+    private static Rig Create(BackupJob? job = null, GoogleClient? shared = null)
     {
         var remote = new StubRemote();
         var authorizer = new StubAuthorizer();
+        var clients = new StubGoogleClients { Default = shared };
+        var dialogs = new StubDialogs();
         var services = new EditorServices(new StubProtector(), new StubExecutor(), new StubFiles(),
-            remote, authorizer, new StubDialogs(), TimeProvider.System);
-        return new Rig(new JobEditorViewModel(JobFactory.Clone(job ?? BaseJob()), false, [], services), remote, authorizer);
+            remote, authorizer, clients, dialogs, TimeProvider.System);
+        return new Rig(new JobEditorViewModel(JobFactory.Clone(job ?? BaseJob()), false, [], services),
+            remote, authorizer, clients, dialogs);
     }
 
     private static async Task WaitUntil(Func<bool> condition)
@@ -331,54 +356,123 @@ public class DriveEditorTests
         return rig.Editor.Destinations[^1];
     }
 
+    private static readonly GoogleClient Shared = new("compartido.apps.googleusercontent.com", "secreto-compartido");
+
+    // ------------------------------------------------------------ Estructura: principal = carpeta
+
     [Fact]
-    public void Adding_a_drive_destination_asks_for_credentials_and_connection()
+    public void The_primary_destination_is_always_a_folder_and_does_not_offer_a_type_choice()
     {
         var rig = Create();
+        AddDrive(rig);
 
-        var drive = AddDrive(rig);
-
-        Assert.True(drive.IsDrive);
-        Assert.False(drive.IsFolder);
-        Assert.Equal("SQL Backup N", drive.FolderName);
-        Assert.False(rig.Editor.CanSave);
-        Assert.NotEmpty(drive.ClientIdError);
-        Assert.NotEmpty(drive.ClientSecretError);
-        Assert.NotEmpty(drive.AccountError);
-        Assert.Equal("Sin conectar", drive.AccountText);
+        Assert.True(rig.Editor.Destinations[0].IsPrimary);
+        Assert.False(rig.Editor.Destinations[0].CanChooseKind);
+        Assert.False(rig.Editor.Destinations[1].IsPrimary);
+        Assert.True(rig.Editor.Destinations[1].CanChooseKind);
     }
 
     [Fact]
-    public void Switching_a_folder_to_drive_changes_which_fields_are_validated()
+    public void Google_drive_cannot_be_added_before_the_primary_folder_exists()
     {
-        var rig = Create();
+        var job = BaseJob();
+        job.Destinations.Clear();
+        var rig = Create(job);
+
+        Assert.False(rig.Editor.AddDriveDestinationCommand.CanExecute(null));
+
         rig.Editor.AddDestinationCommand.Execute(null);
-        var copy = rig.Editor.Destinations[1];
-        Assert.NotEmpty(copy.PathError);
 
-        copy.Kind = DestinationKind.GoogleDrive;
-
-        Assert.Equal(string.Empty, copy.PathError);
-        Assert.NotEmpty(copy.ClientIdError);
+        Assert.True(rig.Editor.AddDriveDestinationCommand.CanExecute(null));
     }
 
     [Fact]
-    public void Drive_as_first_destination_shows_the_kind_error()
+    public void A_hand_edited_job_with_drive_as_primary_still_lets_the_user_fix_the_type()
+    {
+        var job = BaseJob();
+        job.Destinations.Insert(0, new DestinationConfig
+        {
+            Name = "Drive", Kind = DestinationKind.GoogleDrive, Drive = new DriveSettings()
+        });
+        var rig = Create(job);
+
+        Assert.True(rig.Editor.Destinations[0].CanChooseKind);
+        Assert.NotEmpty(rig.Editor.Destinations[0].KindError);
+    }
+
+    // ------------------------------------------------------------ Credenciales de Google: una sola vez
+
+    [Fact]
+    public void Adding_drive_without_credentials_opens_the_setup_and_shows_one_clear_error()
     {
         var rig = Create();
-        rig.Editor.Destinations[0].Kind = DestinationKind.GoogleDrive;
 
-        Assert.Contains("carpeta", rig.Editor.Destinations[0].KindError);
+        var drive = AddDrive(rig);
+
+        Assert.True(rig.Editor.HasDrive);
+        Assert.True(rig.Editor.ShowGoogleSetup);
+        Assert.False(rig.Editor.GoogleClientConfigured);
+        Assert.Equal("Pendiente de configurar", rig.Editor.GoogleStatusText);
+        Assert.Contains("credenciales", drive.ClientError);
+        Assert.NotEmpty(drive.AccountError);
         Assert.False(rig.Editor.CanSave);
+        // Sin la cascada de antes: un error de credenciales y uno de cuenta, nada más para este destino.
+        Assert.Equal(2, rig.Editor.Issues.Count(i => i.IsError && i.Area.StartsWith("Destinos")));
     }
 
     [Fact]
-    public async Task Connecting_stores_the_protected_token_and_shows_the_account()
+    public void With_shared_credentials_available_there_is_nothing_to_configure()
+    {
+        var rig = Create(shared: Shared);
+
+        var drive = AddDrive(rig);
+
+        Assert.True(rig.Editor.GoogleClientConfigured);
+        Assert.False(rig.Editor.ShowGoogleSetup);
+        Assert.Equal("Configuradas", rig.Editor.GoogleStatusText);
+        Assert.Equal(string.Empty, drive.ClientError);
+        Assert.NotEmpty(drive.AccountError);   // solo falta conectar la cuenta
+        Assert.Equal("Cambiar", rig.Editor.GoogleSetupButtonText);
+    }
+
+    [Fact]
+    public void Typing_the_credentials_clears_the_error_and_marks_them_configured()
     {
         var rig = Create();
         var drive = AddDrive(rig);
-        drive.ClientId = "id.apps.googleusercontent.com";
-        drive.ClientSecret = "secreto-plano";
+
+        rig.Editor.GoogleClientId = "id.apps.googleusercontent.com";
+        rig.Editor.GoogleClientSecret = "secreto";
+
+        Assert.True(rig.Editor.GoogleClientConfigured);
+        Assert.Equal(string.Empty, drive.ClientError);
+    }
+
+    [Fact]
+    public void The_setup_panel_can_be_toggled_and_opens_the_guides()
+    {
+        var rig = Create(shared: Shared);
+        AddDrive(rig);
+
+        rig.Editor.ToggleGoogleSetupCommand.Execute(null);
+        Assert.True(rig.Editor.ShowGoogleSetup);
+        Assert.Equal("Ocultar", rig.Editor.GoogleSetupButtonText);
+
+        rig.Editor.OpenGoogleConsoleCommand.Execute(null);
+        rig.Editor.OpenGoogleGuideCommand.Execute(null);
+
+        Assert.Equal([HelpLinks.GoogleCloudCredentials, HelpLinks.GoogleDriveGuide], rig.Dialogs.OpenedUrls);
+    }
+
+    // ------------------------------------------------------------ Conectar la cuenta
+
+    [Fact]
+    public async Task Connecting_with_typed_credentials_stores_the_protected_token_and_shows_the_account()
+    {
+        var rig = Create();
+        var drive = AddDrive(rig);
+        rig.Editor.GoogleClientId = "id.apps.googleusercontent.com";
+        rig.Editor.GoogleClientSecret = "secreto-plano";
 
         drive.ConnectCommand.Execute(null);
         await WaitUntil(() => drive.IsConnected);
@@ -392,25 +486,40 @@ public class DriveEditorTests
     }
 
     [Fact]
-    public void Connecting_without_credentials_explains_what_is_missing()
+    public async Task Connecting_uses_the_shared_credentials_when_nothing_was_typed()
+    {
+        var rig = Create(shared: Shared);
+        var drive = AddDrive(rig);
+
+        drive.ConnectCommand.Execute(null);
+        await WaitUntil(() => drive.IsConnected);
+
+        Assert.Equal(Shared.ClientId, rig.Authorizer.LastClientId);
+        Assert.Equal(Shared.ClientSecret, rig.Authorizer.LastClientSecret);
+        Assert.True(rig.Editor.CanSave);
+    }
+
+    [Fact]
+    public void Connecting_without_credentials_points_to_the_setup_and_opens_it()
     {
         var rig = Create();
         var drive = AddDrive(rig);
+        rig.Editor.ShowGoogleSetup = false;
 
         drive.ConnectCommand.Execute(null);
 
         Assert.StartsWith("✖", drive.ConnectResult);
-        Assert.Contains("ID y el secreto", drive.ConnectResult);
+        Assert.Contains("credenciales", drive.ConnectResult);
+        Assert.True(rig.Editor.ShowGoogleSetup);
         Assert.False(drive.IsConnected);
+        Assert.Null(rig.Authorizer.LastClientId);
     }
 
     [Fact]
     public async Task A_failed_connection_shows_a_one_line_error()
     {
-        var rig = Create();
+        var rig = Create(shared: Shared);
         var drive = AddDrive(rig);
-        drive.ClientId = "id";
-        drive.ClientSecret = "s";
         rig.Authorizer.Failure = new InvalidOperationException("Google rechazó la autorización\nDetalle largo");
 
         drive.ConnectCommand.Execute(null);
@@ -420,28 +529,49 @@ public class DriveEditorTests
         Assert.False(drive.IsConnected);
     }
 
+    // ------------------------------------------------------------ Guardar
+
     [Fact]
-    public async Task Saving_protects_the_new_client_secret_and_keeps_the_token()
+    public async Task Saving_stores_the_typed_credentials_once_for_everyone_and_keeps_the_token_protected()
     {
         var rig = Create();
         var drive = AddDrive(rig);
-        drive.ClientId = "id.apps.googleusercontent.com";
-        drive.ClientSecret = "secreto-plano";
+        rig.Editor.GoogleClientId = "id.apps.googleusercontent.com";
+        rig.Editor.GoogleClientSecret = "secreto-plano";
         drive.ConnectCommand.Execute(null);
         await WaitUntil(() => drive.IsConnected);
 
         rig.Editor.SaveCommand.Execute(null);
 
+        var shared = Assert.Single(rig.Clients.Saved);
+        Assert.Equal(new GoogleClient("id.apps.googleusercontent.com", "secreto-plano"), shared);
+
         var saved = Assert.Single(rig.Editor.Result!.Destinations, d => d.Kind == DestinationKind.GoogleDrive);
-        Assert.Equal("enc:secreto-plano", saved.Drive!.ProtectedClientSecret);
-        Assert.Equal("enc:refresh-123", saved.Drive.ProtectedRefreshToken);
+        Assert.Equal("enc:refresh-123", saved.Drive!.ProtectedRefreshToken);
         Assert.Equal("demo@example.test", saved.Drive.AccountEmail);
         Assert.Equal("SQL Backup N", saved.Drive.FolderName);
+        // El destino ya no arrastra credenciales propias: usa las compartidas.
+        Assert.Equal(string.Empty, saved.Drive.ClientId);
+        Assert.Null(saved.Drive.ProtectedClientSecret);
         Assert.Equal(string.Empty, saved.Path);
     }
 
     [Fact]
-    public void Existing_drive_destination_keeps_its_stored_secret_when_left_blank()
+    public async Task Saving_without_typing_new_credentials_does_not_overwrite_the_shared_ones()
+    {
+        var rig = Create(shared: Shared);
+        var drive = AddDrive(rig);
+        drive.ConnectCommand.Execute(null);
+        await WaitUntil(() => drive.IsConnected);
+
+        rig.Editor.SaveCommand.Execute(null);
+
+        Assert.Empty(rig.Clients.Saved);
+        Assert.NotNull(rig.Editor.Result);
+    }
+
+    [Fact]
+    public void A_destination_with_its_own_credentials_from_an_older_version_keeps_working()
     {
         var job = BaseJob();
         job.Destinations.Add(new DestinationConfig
@@ -450,22 +580,22 @@ public class DriveEditorTests
             Kind = DestinationKind.GoogleDrive,
             Drive = new DriveSettings
             {
-                ClientId = "id", ProtectedClientSecret = "enc:guardado", ProtectedRefreshToken = "enc:token",
+                ClientId = "propio", ProtectedClientSecret = "enc:guardado", ProtectedRefreshToken = "enc:token",
                 AccountEmail = "demo@example.test", FolderName = "Backups/SQL"
             }
         });
-        var rig = Create(job);
-        var drive = rig.Editor.Destinations[1];
+        var rig = Create(job);   // sin credenciales compartidas
 
         Assert.True(rig.Editor.CanSave);
-        Assert.True(drive.IsConnected);
-        Assert.Contains("Déjelo en blanco", drive.SecretHint);
+        Assert.True(rig.Editor.Destinations[1].IsConnected);
 
         rig.Editor.SaveCommand.Execute(null);
 
         var saved = rig.Editor.Result!.Destinations[1].Drive!;
+        Assert.Equal("propio", saved.ClientId);
         Assert.Equal("enc:guardado", saved.ProtectedClientSecret);
         Assert.Equal("Backups/SQL", saved.FolderName);
+        Assert.Empty(rig.Clients.Saved);
     }
 
     [Fact]
@@ -476,10 +606,11 @@ public class DriveEditorTests
         {
             Name = "Drive",
             Kind = DestinationKind.GoogleDrive,
-            Drive = new DriveSettings { ClientId = "id", ProtectedClientSecret = "enc:s", ProtectedRefreshToken = "enc:t" }
+            Drive = new DriveSettings { ProtectedRefreshToken = "enc:t", AccountEmail = "demo@example.test" }
         });
-        var rig = Create(job);
+        var rig = Create(job, Shared);
         var drive = rig.Editor.Destinations[1];
+        Assert.True(rig.Editor.CanSave);
 
         drive.DisconnectCommand.Execute(null);
 
@@ -489,13 +620,15 @@ public class DriveEditorTests
         Assert.False(rig.Editor.CanSave);
     }
 
+    // ------------------------------------------------------------ Probar
+
     [Fact]
-    public async Task Testing_drive_requires_a_connected_account_then_reports_success_or_failure()
+    public async Task Testing_drive_requires_a_connected_account_and_uses_the_credentials_in_use()
     {
         var rig = Create();
         var drive = AddDrive(rig);
-        drive.ClientId = "id";
-        drive.ClientSecret = "s";
+        rig.Editor.GoogleClientId = "id";
+        rig.Editor.GoogleClientSecret = "secret";
 
         drive.TestCommand.Execute(null);
         await WaitUntil(() => drive.TestResult.Length > 0);
@@ -508,9 +641,10 @@ public class DriveEditorTests
         drive.TestCommand.Execute(null);
         await WaitUntil(() => drive.TestResult.StartsWith('✔'));
         Assert.Contains("demo@example.test", drive.TestResult);
-        // La prueba usa secretos ya cifrados, nunca el texto en claro ni la marca interna.
+        // Se prueba con las credenciales escritas aunque aún no se hayan guardado, y siempre cifradas.
         var tested = Assert.Single(rig.Remote.Tested).Drive!;
-        Assert.Equal("enc:s", tested.ProtectedClientSecret);
+        Assert.Equal("id", tested.ClientId);
+        Assert.Equal("enc:secret", tested.ProtectedClientSecret);
 
         rig.Remote.TestFailure = new IOException("Google Drive: sin permiso");
         drive.TestCommand.Execute(null);
@@ -527,5 +661,71 @@ public class DriveEditorTests
         var texts = rig.Editor.Issues.Where(i => i.IsError).Select(i => i.Text).ToList();
 
         Assert.Contains(texts, t => t.StartsWith("Destinos (destino 2): ", StringComparison.Ordinal));
+    }
+}
+
+/// <summary>Credenciales de Google compartidas: guardado cifrado y credenciales incluidas con la aplicación.</summary>
+public sealed class GoogleClientProviderTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "sqlbackupn-test-" + Guid.NewGuid().ToString("N"));
+
+    public GoogleClientProviderTests() => Directory.CreateDirectory(_dir);
+
+    public void Dispose() => Directory.Delete(_dir, recursive: true);
+
+    private string DataFile => Path.Combine(_dir, "data", "google-client.json");
+    private string BundledFile => Path.Combine(_dir, "bundled.json");
+
+    private SqlBackupN.Core.Infrastructure.FileGoogleClientProvider Create() =>
+        new(new StubProtector(), DataFile, BundledFile);
+
+    [Fact]
+    public void Nothing_configured_returns_null()
+    {
+        Assert.Null(Create().GetDefault());
+    }
+
+    [Fact]
+    public void Saved_credentials_round_trip_and_the_secret_is_never_stored_in_plain_text()
+    {
+        var provider = Create();
+
+        provider.SaveDefault(new GoogleClient("mi-id", "mi-secreto"));
+
+        Assert.Equal(new GoogleClient("mi-id", "mi-secreto"), provider.GetDefault());
+        // El secreto solo se guarda como salida del cifrador (el doble de prueba antepone "enc:"),
+        // en el campo "protectedClientSecret" y nunca en un campo de texto plano "clientSecret".
+        var text = File.ReadAllText(DataFile);
+        Assert.Contains("\"protectedClientSecret\": \"enc:mi-secreto\"", text);
+        Assert.DoesNotContain("\"clientSecret\"", text);
+        Assert.Contains("\"clientId\": \"mi-id\"", text);
+    }
+
+    [Fact]
+    public void Credentials_bundled_with_the_app_are_used_when_the_user_saved_none()
+    {
+        File.WriteAllText(BundledFile, "{\"clientId\": \"incluido\", \"clientSecret\": \"secreto-incluido\"}");
+
+        Assert.Equal(new GoogleClient("incluido", "secreto-incluido"), Create().GetDefault());
+    }
+
+    [Fact]
+    public void The_users_credentials_win_over_the_bundled_ones()
+    {
+        File.WriteAllText(BundledFile, "{\"clientId\": \"incluido\", \"clientSecret\": \"x\"}");
+        var provider = Create();
+
+        provider.SaveDefault(new GoogleClient("propio", "secreto"));
+
+        Assert.Equal("propio", provider.GetDefault()!.ClientId);
+    }
+
+    [Fact]
+    public void A_corrupt_file_is_ignored_instead_of_breaking_the_app()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(DataFile)!);
+        File.WriteAllText(DataFile, "{ esto no es json");
+
+        Assert.Null(Create().GetDefault());
     }
 }

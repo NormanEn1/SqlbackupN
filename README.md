@@ -6,9 +6,9 @@ Software libre (MIT) de **Centinela Appliance**.
 ## Qué hace
 
 - **Varios servidores y varias bases de datos** por job: todas las de usuario (incluidas las nuevas), una lista, o un patrón como `Ventas*`.
-- **Backups completo, diferencial y de log de transacciones**, combinables en un mismo plan (p. ej. completo el domingo, diferencial cada noche, log cada 15 minutos).
+- **Backups completo, diferencial y de log de transacciones**, combinables en un mismo plan (p. ej. completo el domingo, diferencial cada noche, log cada 15 minutos). La **programación es visual**: se elige la frecuencia en una lista, la hora y los minutos con selectores y los días con botones, sin escribir expresiones cron.
 - **Segundo plano real**: un servicio de Windows ejecuta la programación aunque nadie haya iniciado sesión; recupera ejecuciones perdidas si el equipo estuvo apagado.
-- **Destinos**: carpeta local, unidad o ruta de red, y **Google Drive mediante su API oficial** (sin depender de la unidad `G:\` ni de una sesión de usuario). El primero lo escribe SQL Server; los demás son copias (regla 3-2-1). Ver [Google Drive](docs/google-drive.md).
+- **Destinos**: carpeta local, unidad o ruta de red, y **Google Drive mediante su API oficial** (sin depender de la unidad `G:\` ni de una sesión de usuario; las credenciales de Google se piden **una sola vez** con pasos guiados). El primero lo escribe SQL Server; los demás son copias (regla 3-2-1). Ver [Google Drive](docs/google-drive.md).
 - **Retención** por antigüedad y/o cantidad, con una regla de seguridad: nunca borra el backup más reciente.
 - **Verificación** automática (`RESTORE VERIFYONLY` + `CHECKSUM`) tras cada backup.
 - **Avisos** por webhook (Teams, Slack u otros) cuando algo falla.
@@ -22,38 +22,39 @@ Las imágenes usan **datos ficticios de demostración**. Se regeneran con
 
 **Panel principal** — lista de jobs con su último estado, configuración en tarjetas e historial:
 
-![Panel principal](docs/screenshots/01-panel-principal.png?v=dc2e6f4d)
+![Panel principal](docs/screenshots/01-panel-principal.png?v=fc939949)
 
 **Bienvenida** — sin jobs, la aplicación guía hacia el primero:
 
-![Bienvenida](docs/screenshots/04-bienvenida.png?v=28c61c1d)
+![Bienvenida](docs/screenshots/04-bienvenida.png?v=4dea6625)
 
 **Job con advertencia** (falló la copia a un destino secundario) y **job con fallo** (el motivo se ve en el historial):
 
-![Job con advertencia](docs/screenshots/02-job-con-advertencia.png?v=fe363920)
-![Job con fallo](docs/screenshots/03-job-con-fallo.png?v=256a78ce)
+![Job con advertencia](docs/screenshots/02-job-con-advertencia.png?v=d763d33e)
+![Job con fallo](docs/screenshots/03-job-con-fallo.png?v=7c11740f)
 
 ### Editor de jobs
 
 Todas las opciones del job se administran desde el editor, organizadas por pestañas:
 
-![Editor: general y servidor](docs/screenshots/05-editor-general.png?v=001f01c0)
-![Editor: programación](docs/screenshots/06-editor-programacion.png?v=9d70e7a7)
-![Editor: destinos](docs/screenshots/07-editor-destinos.png?v=54b68dc6)
-![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png?v=f246a7c1)
-![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png?v=2b9d3e4f)
+![Editor: general y servidor](docs/screenshots/05-editor-general.png?v=ff558658)
+![Editor: programación](docs/screenshots/06-editor-programacion.png?v=72e9cf64)
+![Editor: destinos](docs/screenshots/07-editor-destinos.png?v=37d253cc)
+![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png?v=0437111d)
+![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png?v=6330a883)
 
 **Validación en vivo** — cada dato se comprueba mientras se escribe; no se puede guardar con errores y el
 resumen indica en qué pestaña está cada problema (también al abrir un `jobs.json` escrito a mano):
 
-![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png?v=e153f59d)
-![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png?v=bf16e6ce)
-![Nuevo job](docs/screenshots/12-editor-nuevo-job.png?v=4623e594)
+![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png?v=25295232)
+![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png?v=766131aa)
+![Nuevo job](docs/screenshots/12-editor-nuevo-job.png?v=d03c4eb9)
 
 **Destino Google Drive** — credenciales de su proyecto de Google Cloud, conexión de la cuenta con un clic (autorización una sola vez en el navegador) y carpeta de destino; el servicio sube después una copia por HTTPS:
 
-![Google Drive conectado](docs/screenshots/13-editor-google-drive.png?v=0f96aa13)
-![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png?v=13197bad)
+![Google Drive conectado](docs/screenshots/13-editor-google-drive.png?v=c6ff5963)
+![Credenciales de Google, pasos guiados](docs/screenshots/15-editor-google-credenciales.png?v=418958d2)
+![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png?v=0b6a5b69)
 
 ## Componentes
 
@@ -116,7 +117,7 @@ dotnet test SqlBackupN.sln
 
 ## Estado
 
-Versión **0.3** (núcleo, servicio, CLI, administración completa de jobs desde la interfaz y copias a Google Drive). El destino de Google Drive se probó con dobles de prueba; la integración real con Google debe validarse con su propia cuenta (ver [guía](docs/google-drive.md)). El asistente de restauración y los avisos por correo están en la [hoja de ruta](docs/roadmap.md).
+Versión **0.4** (núcleo, servicio, CLI, administración completa de jobs desde la interfaz, programación visual y copias a Google Drive). El destino de Google Drive se probó con dobles de prueba; la integración real con Google debe validarse con su propia cuenta (ver [guía](docs/google-drive.md)). El asistente de restauración y los avisos por correo están en la [hoja de ruta](docs/roadmap.md).
 
 ## Licencia
 

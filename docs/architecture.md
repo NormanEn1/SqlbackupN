@@ -78,6 +78,15 @@ Un destino remoto implementa `IRemoteStorage` (subir, listar, borrar, probar). H
 - **Todo detrás de interfaces**: `IRemoteStorage` e `IGoogleAuthorizer` se simulan en las pruebas, sin red ni Google.
 - Añadir otra nube (S3, Azure, SFTP) = implementar `IRemoteStorage` y un valor nuevo de `DestinationKind`.
 
+## Horarios y credenciales compartidas
+
+- **`ScheduleBuilder`** (puro) convierte entre un horario amigable (frecuencia, hora, días, intervalos) y la expresión cron,
+  y la describe en palabras. El cron sigue siendo el **único formato guardado**: no cambia el modelo ni los `jobs.json` existentes.
+  Un cron que no encaja en ninguna frecuencia se trata como `Custom` y se edita como texto.
+- **`IGoogleClientProvider`** entrega las credenciales de Google compartidas por todos los destinos: las del usuario
+  (`google-client.json` en la carpeta de datos, secreto cifrado) o las incluidas con la aplicación (junto al ejecutable).
+  Un destino de una versión anterior puede traer las suyas, que tienen prioridad.
+
 ## Flujo de una ejecución programada
 
 1. `SchedulerWorker` despierta cada 30 s y carga los jobs (`IJobStore`).

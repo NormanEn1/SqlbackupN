@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddSingleton<IBackupExecutor, SqlBackupExecutor>();
         services.AddSingleton<IFileStore, LocalFileStore>();
+        services.AddSingleton<IGoogleClientProvider, FileGoogleClientProvider>();
         services.AddSingleton<IRemoteStorage, GoogleDriveStorage>();
         services.AddSingleton<IGoogleAuthorizer, GoogleAuthorizer>();
         services.AddSingleton<IJobStore>(_ => new JsonJobStore());

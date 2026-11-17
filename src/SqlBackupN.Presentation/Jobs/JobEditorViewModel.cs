@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using SqlBackupN.Core.Abstractions;
 using SqlBackupN.Core.Domain;
 using SqlBackupN.Core.Services;
 using SqlBackupN.Presentation.Infrastructure;
@@ -67,6 +68,12 @@ public sealed class JobEditorViewModel : ViewModelBase
     private int _errorCount;
     private int _warningCount;
 
+    // Credenciales de Google compartidas por todos los destinos de Drive
+    private string _googleClientId = string.Empty;
+    private string _googleClientSecret = string.Empty;
+    private readonly bool _hasSharedGoogleClient;
+    private bool _showGoogleSetup;
+
     /// <summary>Crea el editor.</summary>
     /// <param name="job">Job a editar (se trabaja sobre esta instancia; pase una copia).</param>
     /// <param name="isNew"><c>true</c> si es un job nuevo.</param>
@@ -108,6 +115,10 @@ public sealed class JobEditorViewModel : ViewModelBase
         _onWarning = job.Notifications.OnWarning;
         _onFailure = job.Notifications.OnFailure;
 
+        _hasSharedGoogleClient = services.GoogleClients.GetDefault() is not null;
+        _showGoogleSetup = !_hasSharedGoogleClient &&
+                           job.Destinations.Any(d => d.Kind == DestinationKind.GoogleDrive && string.IsNullOrWhiteSpace(d.Drive?.ClientId));
+
         foreach (var step in job.Steps) Steps.Add(NewStep(step));
         foreach (var destination in job.Destinations) Destinations.Add(NewDestination(destination));
 
@@ -116,7 +127,11 @@ public sealed class JobEditorViewModel : ViewModelBase
         AddStepCommand = new RelayCommand(AddStep);
         ApplyPlanCommand = new RelayCommand(p => ApplyPlan(ParsePreset(p)));
         AddDestinationCommand = new RelayCommand(AddDestination);
-        AddDriveDestinationCommand = new RelayCommand(AddDriveDestination);
+        // Drive solo puede ser una copia: hace falta que ya exista la carpeta principal.
+        AddDriveDestinationCommand = new RelayCommand(AddDriveDestination, () => Destinations.Count > 0);
+        ToggleGoogleSetupCommand = new RelayCommand(() => ShowGoogleSetup = !ShowGoogleSetup);
+        OpenGoogleConsoleCommand = new RelayCommand(() => _svc.Dialogs.OpenUrl(HelpLinks.GoogleCloudCredentials));
+        OpenGoogleGuideCommand = new RelayCommand(() => _svc.Dialogs.OpenUrl(HelpLinks.GoogleDriveGuide));
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync);
 
         _loading = false;
@@ -193,8 +208,17 @@ public sealed class JobEditorViewModel : ViewModelBase
     /// <summary>Agrega un destino de tipo carpeta.</summary>
     public RelayCommand AddDestinationCommand { get; }
 
-    /// <summary>Agrega un destino de tipo Google Drive.</summary>
+    /// <summary>Agrega un destino de tipo Google Drive (solo disponible si ya hay una carpeta principal).</summary>
     public RelayCommand AddDriveDestinationCommand { get; }
+
+    /// <summary>Muestra u oculta los pasos y campos de las credenciales de Google.</summary>
+    public RelayCommand ToggleGoogleSetupCommand { get; }
+
+    /// <summary>Abre la página de credenciales de Google Cloud en el navegador.</summary>
+    public RelayCommand OpenGoogleConsoleCommand { get; }
+
+    /// <summary>Abre la guía paso a paso.</summary>
+    public RelayCommand OpenGoogleGuideCommand { get; }
 
     /// <summary>Prueba la conexión con el servidor.</summary>
     public AsyncRelayCommand TestConnectionCommand { get; }
@@ -323,6 +347,59 @@ public sealed class JobEditorViewModel : ViewModelBase
     /// <summary>Avisar si hay fallos.</summary>
     public bool OnFailure { get => _onFailure; set => Edit(ref _onFailure, value); }
 
+    // ---------------------------------------------------------------- Credenciales de Google (compartidas)
+
+    /// <summary><c>true</c> si hay al menos un destino de Google Drive (se muestra el recuadro de credenciales).</summary>
+    public bool HasDrive => Destinations.Any(d => d.IsDrive);
+
+    /// <summary>ID de cliente de Google (se guarda una sola vez, para todos los destinos).</summary>
+    public string GoogleClientId { get => _googleClientId; set => Edit(ref _googleClientId, value ?? string.Empty); }
+
+    /// <summary>Secreto de cliente de Google (texto en claro, solo en memoria; se guarda cifrado).</summary>
+    public string GoogleClientSecret
+    {
+        get => _googleClientSecret;
+        set
+        {
+            if (!Edit(ref _googleClientSecret, value ?? string.Empty)) return;
+            Raise(nameof(GoogleSecretHint));
+        }
+    }
+
+    /// <summary><c>true</c> si ya se puede conectar con Google (credenciales guardadas, incluidas o recién escritas).</summary>
+    public bool GoogleClientConfigured =>
+        _hasSharedGoogleClient || GoogleClientTyped ||
+        (HasDrive && Destinations.Where(d => d.IsDrive).All(d => d.HasOwnCredentials));
+
+    /// <summary>Texto del estado de las credenciales.</summary>
+    public string GoogleStatusText => GoogleClientConfigured ? "Configuradas" : "Pendiente de configurar";
+
+    /// <summary>Muestra los pasos y los campos de las credenciales (se abre sola si faltan).</summary>
+    public bool ShowGoogleSetup
+    {
+        get => _showGoogleSetup;
+        set
+        {
+            if (Set(ref _showGoogleSetup, value)) Raise(nameof(GoogleSetupButtonText));
+        }
+    }
+
+    /// <summary>Texto del botón que muestra u oculta los campos.</summary>
+    public string GoogleSetupButtonText => _showGoogleSetup ? "Ocultar" : GoogleClientConfigured ? "Cambiar" : "Configurar";
+
+    /// <summary>Ayuda bajo el campo del secreto.</summary>
+    public string GoogleSecretHint => _hasSharedGoogleClient && _googleClientSecret.Length == 0
+        ? "Ya hay credenciales guardadas (cifradas). Escriba otras solo si quiere cambiarlas."
+        : "Se guarda cifrado con DPAPI; nunca en texto plano.";
+
+    private bool GoogleClientTyped => _googleClientId.Trim().Length > 0 && _googleClientSecret.Length > 0;
+
+    /// <summary>Credenciales que se usarán al conectar o probar: las recién escritas o las guardadas.</summary>
+    private GoogleClient? ResolveSharedClient() =>
+        GoogleClientTyped
+            ? new GoogleClient(_googleClientId.Trim(), _googleClientSecret)
+            : _svc.GoogleClients.GetDefault();
+
     // ---------------------------------------------------------------- Lógica
 
     private bool Edit<T>(ref T field, T value, [CallerMemberName] string? name = null)
@@ -343,7 +420,7 @@ public sealed class JobEditorViewModel : ViewModelBase
     private StepEditorViewModel NewStep(BackupStep step) => new(step, Revalidate, RemoveStep);
 
     private DestinationEditorViewModel NewDestination(DestinationConfig d) =>
-        new(d, Revalidate, RemoveDestination, MoveDestination, _svc);
+        new(d, Revalidate, RemoveDestination, MoveDestination, _svc, ResolveSharedClient, () => ShowGoogleSetup = true);
 
     private void AddStep()
     {
@@ -387,6 +464,7 @@ public sealed class JobEditorViewModel : ViewModelBase
 
     private void AddDriveDestination()
     {
+        if (!GoogleClientConfigured) ShowGoogleSetup = true;
         Destinations.Add(NewDestination(new DestinationConfig
         {
             Name = "Google Drive",
@@ -454,13 +532,13 @@ public sealed class JobEditorViewModel : ViewModelBase
             if (job.Connection.ProtectedPassword == PendingPassword)
                 job.Connection.ProtectedPassword = _svc.Protector.Protect(_password);
 
-            // El borrador y la lista de destinos tienen el mismo orden.
-            for (var i = 0; i < Destinations.Count; i++)
-                Destinations[i].ProtectPending(job.Destinations[i]);
+            // Credenciales de Google: se guardan una sola vez, cifradas, para todos los destinos.
+            if (GoogleClientTyped && HasDrive)
+                _svc.GoogleClients.SaveDefault(new GoogleClient(_googleClientId.Trim(), _googleClientSecret));
         }
         catch (Exception ex)
         {
-            _svc.Dialogs.ShowMessage("No se pudo cifrar la contraseña", ex.Message);
+            _svc.Dialogs.ShowMessage("No se pudo guardar un dato protegido", ex.Message);
             return;
         }
 
@@ -523,6 +601,13 @@ public sealed class JobEditorViewModel : ViewModelBase
                 OnFailure = OnFailure
             }
         };
+        // Un paso por días (semanal, cada pocas horas/minutos) sin ningún día marcado no genera cron válido.
+        for (var i = 0; i < Steps.Count; i++)
+        {
+            if (Steps[i].NoDays)
+                parseIssues.Add(new ValidationIssue(IssueSeverity.Error, $"Steps[{i}].Cron", "Marque al menos un día de la semana."));
+        }
+
         return job;
     }
 
@@ -543,7 +628,7 @@ public sealed class JobEditorViewModel : ViewModelBase
 
         var issues = new List<ValidationIssue>();
         var draft = BuildDraft(issues);
-        issues.AddRange(JobValidator.Validate(draft, _otherNames));
+        issues.AddRange(JobValidator.Validate(draft, _otherNames, GoogleClientConfigured));
 
         Errors = ToMap(issues, IssueSeverity.Error);
         Warnings = ToMap(issues, IssueSeverity.Warning);
@@ -575,11 +660,17 @@ public sealed class JobEditorViewModel : ViewModelBase
             d.NameError = Errors.GetValueOrDefault($"Destinations[{i}].Name", string.Empty);
             d.PathError = Errors.GetValueOrDefault($"Destinations[{i}].Path", string.Empty);
             d.KindError = Errors.GetValueOrDefault($"Destinations[{i}].Kind", string.Empty);
-            d.ClientIdError = Errors.GetValueOrDefault($"Destinations[{i}].Drive.ClientId", string.Empty);
-            d.ClientSecretError = Errors.GetValueOrDefault($"Destinations[{i}].Drive.ClientSecret", string.Empty);
+            d.IsPrimary = i == 0;
+            d.ClientError = Errors.GetValueOrDefault($"Destinations[{i}].Drive.Client", string.Empty);
             d.AccountError = Errors.GetValueOrDefault($"Destinations[{i}].Drive.Account", string.Empty);
             d.FolderError = Errors.GetValueOrDefault($"Destinations[{i}].Drive.Folder", string.Empty);
         }
+
+        Raise(nameof(HasDrive));
+        Raise(nameof(GoogleClientConfigured));
+        Raise(nameof(GoogleStatusText));
+        Raise(nameof(GoogleSetupButtonText));
+        AddDriveDestinationCommand.NotifyCanExecuteChanged();
 
         PathPreview = BuildPathPreview(draft);
     }

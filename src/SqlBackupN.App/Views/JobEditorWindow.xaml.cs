@@ -26,11 +26,10 @@ public partial class JobEditorWindow : Window
         if (DataContext is JobEditorViewModel vm) vm.Password = ((PasswordBox)sender).Password;
     }
 
-    /// <summary>Traslada el secreto de cliente de Google al destino al que pertenece la fila.</summary>
-    private void DriveSecret_Changed(object sender, RoutedEventArgs e)
+    /// <summary>Traslada el secreto de cliente de Google al editor (se guarda una sola vez, cifrado).</summary>
+    private void GoogleSecret_Changed(object sender, RoutedEventArgs e)
     {
-        if (sender is PasswordBox { DataContext: DestinationEditorViewModel destination } box)
-            destination.ClientSecret = box.Password;
+        if (DataContext is JobEditorViewModel vm) vm.GoogleClientSecret = ((PasswordBox)sender).Password;
     }
 
     /// <summary>Al elegir autenticación SQL se desmarca la de Windows en el view-model.</summary>

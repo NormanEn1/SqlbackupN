@@ -10,6 +10,7 @@ namespace SqlBackupN.Presentation.Jobs;
 /// <param name="Files">Prueba que un destino de carpeta sea escribible.</param>
 /// <param name="Remote">Prueba los destinos en la nube (Google Drive).</param>
 /// <param name="Authorizer">Conecta la cuenta de Google.</param>
+/// <param name="GoogleClients">Credenciales de Google compartidas por todos los destinos.</param>
 /// <param name="Dialogs">Selector de carpetas y mensajes.</param>
 /// <param name="Clock">Reloj (para calcular próximas ejecuciones).</param>
 public sealed record EditorServices(
@@ -18,6 +19,7 @@ public sealed record EditorServices(
     IFileStore Files,
     IRemoteStorage Remote,
     IGoogleAuthorizer Authorizer,
+    IGoogleClientProvider GoogleClients,
     IDialogService Dialogs,
     TimeProvider Clock);
 
@@ -64,106 +66,67 @@ public sealed record IssueRow(bool IsError, string Area, string Message)
     public string Text => $"{Area}: {Message}";
 }
 
-/// <summary>Un paso de programación dentro del editor.</summary>
-public sealed class StepEditorViewModel : ViewModelBase
-{
-    private readonly Action _changed;
-    private BackupType _type;
-    private string _cron;
-    private bool _enabled;
-    private string _nextRuns = string.Empty;
-    private string _error = string.Empty;
-
-    /// <summary>Crea el view-model a partir de un paso existente.</summary>
-    /// <param name="step">Paso de origen (se conserva su identificador).</param>
-    /// <param name="changed">Se invoca al cambiar cualquier campo editable.</param>
-    /// <param name="remove">Se invoca al pulsar "Quitar".</param>
-    public StepEditorViewModel(BackupStep step, Action changed, Action<StepEditorViewModel> remove)
-    {
-        Id = step.Id;
-        _type = step.Type;
-        _cron = step.Cron;
-        _enabled = step.Enabled;
-        _changed = changed;
-        RemoveCommand = new RelayCommand(() => remove(this));
-    }
-
-    /// <summary>Identificador del paso (se conserva para no perder el historial de última ejecución).</summary>
-    public Guid Id { get; }
-
-    /// <summary>Tipo de backup.</summary>
-    public BackupType Type { get => _type; set { if (Set(ref _type, value)) _changed(); } }
-
-    /// <summary>Expresión cron de 5 campos.</summary>
-    public string Cron { get => _cron; set { if (Set(ref _cron, value ?? string.Empty)) _changed(); } }
-
-    /// <summary>Si el paso está habilitado.</summary>
-    public bool Enabled { get => _enabled; set { if (Set(ref _enabled, value)) _changed(); } }
-
-    /// <summary>Texto con las próximas ejecuciones (lo calcula el editor).</summary>
-    public string NextRuns { get => _nextRuns; set => Set(ref _nextRuns, value); }
-
-    /// <summary>Error de validación de este paso (vacío si es correcto).</summary>
-    public string Error { get => _error; set => Set(ref _error, value); }
-
-    /// <summary>Quita el paso del job.</summary>
-    public RelayCommand RemoveCommand { get; }
-
-    /// <summary>Convierte el estado editado en un paso del dominio.</summary>
-    public BackupStep ToStep() => new() { Id = Id, Type = Type, Cron = Cron.Trim(), Enabled = Enabled };
-}
-
 /// <summary>
 /// Un destino dentro del editor (carpeta o Google Drive), con sus acciones: examinar, probar,
-/// conectar la cuenta de Google, mover y quitar.
+/// conectar la cuenta de Google, mover y quitar. Las credenciales de Google no se piden aquí: son
+/// compartidas por todos los destinos y se configuran una sola vez en el editor.
 /// </summary>
 public sealed class DestinationEditorViewModel : ViewModelBase
 {
-    /// <summary>Marca interna: "hay un secreto de cliente nuevo pendiente de cifrar".</summary>
-    internal const string PendingSecret = "\u0001pendiente";
-
     private readonly Action _changed;
     private readonly EditorServices _svc;
+    private readonly Func<GoogleClient?> _sharedClient;
+    private readonly Action _needsGoogleSetup;
 
     private DestinationKind _kind;
     private string _name;
     private string _path;
-    private string _clientId;
-    private string _clientSecret = string.Empty;
-    private string? _protectedSecret;
+    private readonly string _legacyClientId;
+    private readonly string? _legacyProtectedSecret;
     private string? _protectedRefreshToken;
     private string? _accountEmail;
     private string _folderName;
+    private bool _isPrimary;
 
     private string _role = string.Empty;
     private string _nameError = string.Empty;
     private string _pathError = string.Empty;
     private string _kindError = string.Empty;
-    private string _clientIdError = string.Empty;
-    private string _clientSecretError = string.Empty;
+    private string _clientError = string.Empty;
     private string _accountError = string.Empty;
     private string _folderError = string.Empty;
     private string _testResult = string.Empty;
     private string _connectResult = string.Empty;
 
     /// <summary>Crea el view-model a partir de un destino existente.</summary>
+    /// <param name="destination">Destino de origen.</param>
+    /// <param name="changed">Se invoca al cambiar cualquier campo editable.</param>
+    /// <param name="remove">Se invoca al pulsar "Quitar".</param>
+    /// <param name="move">Se invoca al subir o bajar el destino.</param>
+    /// <param name="services">Servicios del editor.</param>
+    /// <param name="sharedClient">Devuelve las credenciales de Google que se van a usar (las escritas o las guardadas).</param>
+    /// <param name="needsGoogleSetup">Pide al editor que muestre los pasos para configurar las credenciales de Google.</param>
     public DestinationEditorViewModel(
         DestinationConfig destination,
         Action changed,
         Action<DestinationEditorViewModel> remove,
         Action<DestinationEditorViewModel, int> move,
-        EditorServices services)
+        EditorServices services,
+        Func<GoogleClient?> sharedClient,
+        Action needsGoogleSetup)
     {
         _kind = destination.Kind;
         _name = destination.Name;
         _path = destination.Path;
-        _clientId = destination.Drive?.ClientId ?? string.Empty;
-        _protectedSecret = destination.Drive?.ProtectedClientSecret;
+        _legacyClientId = destination.Drive?.ClientId ?? string.Empty;
+        _legacyProtectedSecret = destination.Drive?.ProtectedClientSecret;
         _protectedRefreshToken = destination.Drive?.ProtectedRefreshToken;
         _accountEmail = destination.Drive?.AccountEmail;
         _folderName = destination.Drive?.FolderName ?? new DriveSettings().FolderName;
         _changed = changed;
         _svc = services;
+        _sharedClient = sharedClient;
+        _needsGoogleSetup = needsGoogleSetup;
 
         RemoveCommand = new RelayCommand(() => remove(this));
         MoveUpCommand = new RelayCommand(() => move(this, -1));
@@ -193,6 +156,7 @@ public sealed class DestinationEditorViewModel : ViewModelBase
             TestResult = string.Empty;
             Raise(nameof(IsFolder));
             Raise(nameof(IsDrive));
+            Raise(nameof(CanChooseKind));
             _changed();
         }
     }
@@ -202,6 +166,26 @@ public sealed class DestinationEditorViewModel : ViewModelBase
 
     /// <summary><c>true</c> si es Google Drive.</summary>
     public bool IsDrive => _kind == DestinationKind.GoogleDrive;
+
+    /// <summary>
+    /// <c>true</c> para el destino principal (el primero): SQL Server escribe allí, así que siempre es una carpeta
+    /// y no se ofrece elegir el tipo. Lo fija el editor.
+    /// </summary>
+    public bool IsPrimary
+    {
+        get => _isPrimary;
+        set
+        {
+            if (!Set(ref _isPrimary, value)) return;
+            Raise(nameof(CanChooseKind));
+        }
+    }
+
+    /// <summary>
+    /// Se ofrece elegir el tipo solo en las copias; en el destino principal únicamente si por error
+    /// (JSON escrito a mano) es Google Drive, para poder corregirlo.
+    /// </summary>
+    public bool CanChooseKind => !_isPrimary || IsDrive;
 
     /// <summary>Nombre descriptivo del destino.</summary>
     public string Name { get => _name; set { if (Set(ref _name, value ?? string.Empty)) _changed(); } }
@@ -252,28 +236,15 @@ public sealed class DestinationEditorViewModel : ViewModelBase
 
     // ---------------------------------------------------------------- Google Drive
 
-    /// <summary>ID de cliente OAuth del proyecto de Google Cloud.</summary>
-    public string ClientId { get => _clientId; set { if (Set(ref _clientId, value ?? string.Empty)) _changed(); } }
-
-    /// <summary>Secreto de cliente nuevo (texto en claro, solo en memoria; se cifra al guardar).</summary>
-    public string ClientSecret
-    {
-        get => _clientSecret;
-        set
-        {
-            if (!Set(ref _clientSecret, value ?? string.Empty)) return;
-            Raise(nameof(SecretHint));
-            _changed();
-        }
-    }
-
-    /// <summary>Ayuda bajo el campo del secreto.</summary>
-    public string SecretHint => _protectedSecret is { Length: > 0 } && _clientSecret.Length == 0
-        ? "Hay un secreto guardado (cifrado). Déjelo en blanco para conservarlo."
-        : "Se guarda cifrado con DPAPI; nunca en texto plano.";
-
     /// <summary>Carpeta raíz dentro de "Mi unidad" (se crea si no existe).</summary>
     public string FolderName { get => _folderName; set { if (Set(ref _folderName, value ?? string.Empty)) _changed(); } }
+
+    /// <summary>
+    /// <c>true</c> si el destino trae credenciales propias (creado con una versión anterior); entonces no
+    /// necesita las compartidas.
+    /// </summary>
+    public bool HasOwnCredentials =>
+        !string.IsNullOrWhiteSpace(_legacyClientId) && !string.IsNullOrEmpty(_legacyProtectedSecret);
 
     /// <summary><c>true</c> si la cuenta de Google está conectada.</summary>
     public bool IsConnected => !string.IsNullOrEmpty(_protectedRefreshToken);
@@ -286,11 +257,8 @@ public sealed class DestinationEditorViewModel : ViewModelBase
     /// <summary>Resultado del último intento de conexión.</summary>
     public string ConnectResult { get => _connectResult; private set => Set(ref _connectResult, value); }
 
-    /// <summary>Error de validación del ID de cliente.</summary>
-    public string ClientIdError { get => _clientIdError; set => Set(ref _clientIdError, value); }
-
-    /// <summary>Error de validación del secreto de cliente.</summary>
-    public string ClientSecretError { get => _clientSecretError; set => Set(ref _clientSecretError, value); }
+    /// <summary>Error de validación de las credenciales (faltan en el recuadro "Credenciales de Google").</summary>
+    public string ClientError { get => _clientError; set => Set(ref _clientError, value); }
 
     /// <summary>Error de validación de la cuenta (no conectada).</summary>
     public string AccountError { get => _accountError; set => Set(ref _accountError, value); }
@@ -306,7 +274,7 @@ public sealed class DestinationEditorViewModel : ViewModelBase
 
     // ---------------------------------------------------------------- Conversión
 
-    /// <summary>Convierte el estado editado en un destino del dominio (con el secreto nuevo marcado como pendiente).</summary>
+    /// <summary>Convierte el estado editado en un destino del dominio.</summary>
     public DestinationConfig ToDestination() => IsDrive
         ? new DestinationConfig
         {
@@ -314,8 +282,9 @@ public sealed class DestinationEditorViewModel : ViewModelBase
             Kind = DestinationKind.GoogleDrive,
             Drive = new DriveSettings
             {
-                ClientId = ClientId.Trim(),
-                ProtectedClientSecret = _clientSecret.Length > 0 ? PendingSecret : _protectedSecret,
+                // Solo destinos creados con versiones anteriores traen credenciales propias; los nuevos usan las compartidas.
+                ClientId = _legacyClientId,
+                ProtectedClientSecret = _legacyProtectedSecret,
                 ProtectedRefreshToken = _protectedRefreshToken,
                 AccountEmail = _accountEmail,
                 FolderName = FolderName.Trim()
@@ -323,14 +292,15 @@ public sealed class DestinationEditorViewModel : ViewModelBase
         }
         : new DestinationConfig { Name = Name.Trim(), Kind = DestinationKind.Folder, Path = Path.Trim() };
 
-    /// <summary>Cifra el secreto de cliente pendiente (si lo hay) en el destino ya construido.</summary>
-    internal void ProtectPending(DestinationConfig destination)
-    {
-        if (destination.Drive?.ProtectedClientSecret == PendingSecret)
-            destination.Drive.ProtectedClientSecret = _svc.Protector.Protect(_clientSecret);
-    }
-
     // ---------------------------------------------------------------- Acciones
+
+    /// <summary>Credenciales que se usarán: las del propio destino (versiones anteriores) o las compartidas.</summary>
+    private GoogleClient? ResolveClient()
+    {
+        if (!string.IsNullOrWhiteSpace(_legacyClientId) && !string.IsNullOrEmpty(_legacyProtectedSecret))
+            return new GoogleClient(_legacyClientId.Trim(), _svc.Protector.Unprotect(_legacyProtectedSecret));
+        return _sharedClient();
+    }
 
     private async Task TestAsync()
     {
@@ -359,16 +329,18 @@ public sealed class DestinationEditorViewModel : ViewModelBase
             TestResult = "✖ Conecte primero la cuenta de Google.";
             return;
         }
-        if (_clientId.Trim().Length == 0 || (_clientSecret.Length == 0 && string.IsNullOrEmpty(_protectedSecret)))
+        if (ResolveClient() is not { } client)
         {
-            TestResult = "✖ Falta el ID o el secreto de cliente.";
+            TestResult = "✖ Falta configurar las credenciales de Google.";
+            _needsGoogleSetup();
             return;
         }
 
         TestResult = "Probando conexión con Google Drive…";
         var test = ToDestination();
-        if (test.Drive!.ProtectedClientSecret == PendingSecret)
-            test.Drive.ProtectedClientSecret = _svc.Protector.Protect(_clientSecret);
+        // Se prueba con las credenciales en uso aunque todavía no se hayan guardado.
+        test.Drive!.ClientId = client.ClientId;
+        test.Drive.ProtectedClientSecret = _svc.Protector.Protect(client.ClientSecret);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         TestResult = "✔ " + await _svc.Remote.TestAsync(test, cts.Token);
@@ -376,18 +348,32 @@ public sealed class DestinationEditorViewModel : ViewModelBase
 
     private async Task ConnectAsync()
     {
-        if (_clientId.Trim().Length == 0 || (_clientSecret.Length == 0 && string.IsNullOrEmpty(_protectedSecret)))
+        ClientErrorReset();
+        ConnectResult = string.Empty;
+
+        GoogleClient? client;
+        try
         {
-            ConnectResult = "✖ Escriba primero el ID y el secreto de cliente de Google (ver docs/google-drive.md).";
+            client = ResolveClient();
+        }
+        catch (Exception ex)
+        {
+            ConnectResult = "✖ " + ex.Message.Split('\n')[0].Trim();
             return;
         }
 
-        ConnectResult = "Se abrió el navegador: inicie sesión en Google y autorice el acceso…";
+        if (client is null)
+        {
+            ConnectResult = "✖ Primero configure las credenciales de Google (recuadro de arriba; se hace una sola vez).";
+            _needsGoogleSetup();
+            return;
+        }
+
+        ConnectResult = "Se abrió el navegador: inicie sesión en Google y pulse «Permitir»…";
         try
         {
-            var secret = _clientSecret.Length > 0 ? _clientSecret : _svc.Protector.Unprotect(_protectedSecret!);
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            var result = await _svc.Authorizer.AuthorizeAsync(_clientId.Trim(), secret, cts.Token);
+            var result = await _svc.Authorizer.AuthorizeAsync(client.ClientId, client.ClientSecret, cts.Token);
 
             _protectedRefreshToken = _svc.Protector.Protect(result.RefreshToken);
             _accountEmail = result.Email;
@@ -405,6 +391,8 @@ public sealed class DestinationEditorViewModel : ViewModelBase
             ConnectResult = "✖ " + ex.Message.Split('\n')[0].Trim();
         }
     }
+
+    private void ClientErrorReset() => TestResult = string.Empty;
 
     private void Disconnect()
     {

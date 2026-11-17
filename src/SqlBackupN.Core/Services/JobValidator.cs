@@ -45,14 +45,19 @@ public static partial class JobValidator
     /// <summary>Valida el job y devuelve todos los problemas (vacío = correcto).</summary>
     /// <param name="job">Job a validar.</param>
     /// <param name="otherJobNames">Nombres de los demás jobs, para exigir nombres únicos.</param>
-    public static IReadOnlyList<ValidationIssue> Validate(BackupJob job, IEnumerable<string>? otherJobNames = null)
+    /// <param name="googleClientAvailable">
+    /// Si ya hay credenciales de Google compartidas (guardadas por el usuario o incluidas con la aplicación);
+    /// en ese caso un destino de Drive no necesita traer las suyas.
+    /// </param>
+    public static IReadOnlyList<ValidationIssue> Validate(
+        BackupJob job, IEnumerable<string>? otherJobNames = null, bool googleClientAvailable = false)
     {
         var issues = new List<ValidationIssue>();
         ValidateGeneral(job, otherJobNames, issues);
         ValidateConnection(job.Connection, issues);
         ValidateDatabases(job.Databases, issues);
         ValidateSteps(job.Steps, issues);
-        ValidateDestinations(job.Destinations, issues);
+        ValidateDestinations(job.Destinations, googleClientAvailable, issues);
         ValidateOptions(job.Options, issues);
         ValidateRetention(job.Retention, issues);
         ValidateNotifications(job.Notifications, issues);
@@ -161,7 +166,8 @@ public static partial class JobValidator
         }
     }
 
-    private static void ValidateDestinations(List<DestinationConfig> destinations, List<ValidationIssue> issues)
+    private static void ValidateDestinations(
+        List<DestinationConfig> destinations, bool googleClientAvailable, List<ValidationIssue> issues)
     {
         if (destinations.Count == 0)
         {
@@ -182,7 +188,7 @@ public static partial class JobValidator
 
             if (d.Kind == DestinationKind.GoogleDrive)
             {
-                ValidateDrive(d, i, seenPaths, issues);
+                ValidateDrive(d, i, seenPaths, googleClientAvailable, issues);
                 continue;
             }
 
@@ -200,7 +206,8 @@ public static partial class JobValidator
         }
     }
 
-    private static void ValidateDrive(DestinationConfig d, int index, HashSet<string> seen, List<ValidationIssue> issues)
+    private static void ValidateDrive(
+        DestinationConfig d, int index, HashSet<string> seen, bool googleClientAvailable, List<ValidationIssue> issues)
     {
         var prefix = $"Destinations[{index}]";
         var drive = d.Drive ?? new DriveSettings();
@@ -211,10 +218,14 @@ public static partial class JobValidator
                 "El destino principal debe ser una carpeta: SQL Server escribe allí el backup y desde ahí se sube la copia a Google Drive. Ponga Google Drive en una posición posterior.");
         }
 
-        if (string.IsNullOrWhiteSpace(drive.ClientId))
-            Error(issues, $"{prefix}.Drive.ClientId", "El ID de cliente de Google es obligatorio (ver docs/google-drive.md).");
-        if (string.IsNullOrEmpty(drive.ProtectedClientSecret))
-            Error(issues, $"{prefix}.Drive.ClientSecret", "El secreto de cliente de Google es obligatorio.");
+        // Las credenciales pueden ser propias del destino (versiones anteriores) o compartidas por todos.
+        var ownCredentials = !string.IsNullOrWhiteSpace(drive.ClientId);
+        if (ownCredentials && string.IsNullOrEmpty(drive.ProtectedClientSecret))
+            Error(issues, $"{prefix}.Drive.Client", "Falta el secreto de cliente de Google de este destino.");
+        else if (!ownCredentials && !googleClientAvailable)
+            Error(issues, $"{prefix}.Drive.Client",
+                "Faltan las credenciales de Google. Se configuran una sola vez (ver «Credenciales de Google» y docs/google-drive.md).");
+
         if (string.IsNullOrEmpty(drive.ProtectedRefreshToken))
             Error(issues, $"{prefix}.Drive.Account", "La cuenta de Google no está conectada. Pulse «Conectar con Google».");
 

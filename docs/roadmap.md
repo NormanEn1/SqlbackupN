@@ -18,19 +18,25 @@
 - Destino **Google Drive** con la API oficial: autorización de usuario (`drive.file`), subida reanudable con verificación MD5,
   retención remota, conexión de la cuenta desde el editor y pruebas. Guía en [google-drive.md](google-drive.md).
 
-## Siguiente (0.4) — usabilidad
+## Hecho (0.4) — facilidad de uso
+
+- **Programación visual**: frecuencia en una lista, hora y minuto con selectores numéricos y días con botones; el cron queda como opción avanzada.
+  Descripción en palabras de cada horario (`ScheduleBuilder`).
+- **Google Drive más simple**: el destino principal es siempre una carpeta; las credenciales de Google se piden **una sola vez** (compartidas)
+  con pasos guiados, o vienen incluidas con la aplicación (`google-client.json`).
+
+## Siguiente (0.5) — usabilidad
 
 - [ ] Probar el espacio libre del destino y la cuenta real del servicio (no solo el usuario de la interfaz).
 - [ ] Botón para enviar un aviso de prueba al webhook.
 - [ ] Lista de bases del servidor para marcarlas en lugar de escribirlas.
-- [ ] Descripción en palabras de las expresiones cron ("domingos a las 22:00").
 - [ ] Ejecutar desde la interfaz el tipo de backup que se elija (hoy "Ejecutar ahora" lanza el completo).
 - [ ] Panel con alerta "lleva N horas sin backup válido".
 - [ ] Reintentos configurables y espacio libre previo al backup.
 - [ ] Avisos por correo SMTP y Telegram; resumen diario.
 - [ ] Rotación del historial.
 
-## Después (0.5) — restauración y verificación
+## Después (0.6) — restauración y verificación
 
 - [ ] Asistente de restauración (cadena completo + diferencial + logs, punto en el tiempo `STOPAT`).
 - [ ] Restauración de prueba programada + `DBCC CHECKDB`.

@@ -1,6 +1,7 @@
 <Window x:Class="SqlBackupN.App.Views.JobEditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="clr-namespace:SqlBackupN.App.Controls"
         Title="{Binding Title}" Width="980" Height="860" MinWidth="800" MinHeight="600"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
     <Grid>
@@ -133,7 +134,7 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14"
-                                   Text="Cada paso es un tipo de backup con su horario. El diferencial y el log necesitan un completo en el mismo job; si un completo coincide con un diferencial, se hace solo el completo."/>
+                                   Text="Cada paso es un tipo de backup con su horario. Elija la frecuencia, la hora y los días; no hace falta escribir nada. El diferencial y el log necesitan un completo en el mismo job."/>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                             <TextBlock Text="Planes rápidos" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <Button Content="Completo diario" Margin="0,0,8,0"
@@ -148,40 +149,121 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Style="{StaticResource ItemCard}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="200"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
-                                            <ComboBox Grid.Column="0"
-                                                      ItemsSource="{Binding DataContext.StepTypes, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                      SelectedValuePath="Value" SelectedValue="{Binding Type}">
-                                                <ComboBox.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Label}"/>
-                                                    </DataTemplate>
-                                                </ComboBox.ItemTemplate>
-                                            </ComboBox>
-                                            <TextBox Grid.Column="1" Margin="10,0" FontFamily="Consolas"
-                                                     Text="{Binding Cron, UpdateSourceTrigger=PropertyChanged}"
-                                                     ToolTip="minuto hora día-del-mes mes día-de-la-semana · ej.: 0 23 * * *"/>
-                                            <CheckBox Grid.Column="2" Content="Activo" IsChecked="{Binding Enabled}"
-                                                      VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                            <Button Grid.Column="3" Style="{StaticResource DangerButton}" Tag="&#xE74D;"
-                                                    Content="Quitar" Command="{Binding RemoveCommand}"/>
-                                            <StackPanel Grid.Row="1" Grid.ColumnSpan="4">
-                                                <TextBlock Style="{StaticResource Hint}" Text="{Binding NextRuns}" Margin="0,8,0,0"
-                                                           Visibility="{Binding NextRuns, Converter={StaticResource NotEmptyToVisibility}}"/>
-                                                <TextBlock Style="{StaticResource FieldError}" Text="{Binding Error}"
-                                                           Margin="0,8,0,0"/>
+                                        <StackPanel>
+                                            <!-- Tipo de backup y frecuencia -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="210"/>
+                                                    <ColumnDefinition Width="12"/>
+                                                    <ColumnDefinition Width="240"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Tipo de backup" Style="{StaticResource Hint}" Margin="0,0,0,4"/>
+                                                    <ComboBox ItemsSource="{Binding DataContext.StepTypes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                              SelectedValuePath="Value" SelectedValue="{Binding Type}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Label}"/>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="Frecuencia" Style="{StaticResource Hint}" Margin="0,0,0,4"/>
+                                                    <ComboBox ItemsSource="{Binding Modes}" SelectedValuePath="Value" SelectedValue="{Binding Mode}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Label}"/>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <CheckBox Grid.Column="4" Content="Activo" IsChecked="{Binding Enabled}"
+                                                          VerticalAlignment="Bottom" Margin="0,0,14,8"/>
+                                                <Button Grid.Column="5" Style="{StaticResource DangerButton}" Tag="&#xE74D;"
+                                                        Content="Quitar" Command="{Binding RemoveCommand}" VerticalAlignment="Bottom"/>
+                                            </Grid>
+
+                                            <!-- Cuándo -->
+                                            <WrapPanel Margin="0,16,0,0">
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
+                                                            Visibility="{Binding ShowMonthDay, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="El día" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <ctl:NumberSpinner Value="{Binding DayOfMonth}" Minimum="1" Maximum="31" Format="D"
+                                                                       AutomationProperties.Name="Día del mes"/>
+                                                    <TextBlock Text="de cada mes" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                                </StackPanel>
+
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
+                                                            Visibility="{Binding ShowHourInterval, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="Cada" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <ComboBox Width="84" ItemsSource="{Binding HourIntervals}" SelectedItem="{Binding IntervalHours}"
+                                                              AutomationProperties.Name="Cada cuántas horas"/>
+                                                    <TextBlock Text="horas, en el minuto" VerticalAlignment="Center" Margin="10,0,10,0"/>
+                                                    <ctl:NumberSpinner Value="{Binding Minute}" Minimum="0" Maximum="59" Wrap="True"
+                                                                       AutomationProperties.Name="Minuto"/>
+                                                </StackPanel>
+
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
+                                                            Visibility="{Binding ShowMinuteInterval, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="Cada" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <ComboBox Width="84" ItemsSource="{Binding MinuteIntervals}" SelectedItem="{Binding IntervalMinutes}"
+                                                              AutomationProperties.Name="Cada cuántos minutos"/>
+                                                    <TextBlock Text="minutos" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                                </StackPanel>
+
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
+                                                            Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="A las" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <ctl:NumberSpinner Value="{Binding Hour}" Minimum="0" Maximum="23" Wrap="True"
+                                                                       AutomationProperties.Name="Hora"/>
+                                                    <TextBlock Text=":" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,8,2"/>
+                                                    <ctl:NumberSpinner Value="{Binding Minute}" Minimum="0" Maximum="59" Wrap="True"
+                                                                       AutomationProperties.Name="Minuto"/>
+                                                    <TextBlock Text="h" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </WrapPanel>
+
+                                            <!-- Días de la semana -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                                        Visibility="{Binding ShowDays, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="Días" VerticalAlignment="Center" Margin="0,0,14,0" FontWeight="SemiBold"/>
+                                                <ToggleButton Style="{StaticResource DayChip}" Content="Lun" IsChecked="{Binding Monday}" Margin="0,0,6,0"/>
+                                                <ToggleButton Style="{StaticResource DayChip}" Content="Mar" IsChecked="{Binding Tuesday}" Margin="0,0,6,0"/>
+                                                <ToggleButton Style="{StaticResource DayChip}" Content="Mié" IsChecked="{Binding Wednesday}" Margin="0,0,6,0"/>
+                                                <ToggleButton Style="{StaticResource DayChip}" Content="Jue" IsChecked="{Binding Thursday}" Margin="0,0,6,0"/>
+                                                <ToggleButton Style="{StaticResource DayChip}" Content="Vie" IsChecked="{Binding Friday}" Margin="0,0,6,0"/>
+                                                <ToggleButton Style="{StaticResource DayChip}" Content="Sáb" IsChecked="{Binding Saturday}" Margin="0,0,6,0"/>
+                                                <ToggleButton Style="{StaticResource DayChip}" Content="Dom" IsChecked="{Binding Sunday}"/>
                                             </StackPanel>
-                                        </Grid>
+
+                                            <!-- Modo avanzado -->
+                                            <StackPanel Margin="0,12,0,0"
+                                                        Visibility="{Binding ShowCron, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="Expresión cron (minuto hora día-del-mes mes día-de-la-semana)" Style="{StaticResource Hint}" Margin="0,0,0,4"/>
+                                                <TextBox FontFamily="Consolas" Text="{Binding Cron, UpdateSourceTrigger=PropertyChanged}"/>
+                                                <TextBlock Style="{StaticResource Hint}"
+                                                           Text="Ejemplos: 0 23 * * * (todos los días 23:00) · 0 22 * * 1-5 (lunes a viernes 22:00) · 30 2 1 * * (día 1 de cada mes 02:30)"/>
+                                            </StackPanel>
+
+                                            <!-- Resumen -->
+                                            <Border Margin="0,14,0,0" Padding="12,9" CornerRadius="6" Background="{StaticResource PrimaryTintBrush}">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE787;" Style="{StaticResource IconText}" Foreground="{StaticResource PrimaryBrush}" Margin="0,0,10,0"/>
+                                                        <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
+                                                    </StackPanel>
+                                                    <TextBlock Style="{StaticResource Hint}" Text="{Binding NextRuns}" Margin="26,4,0,0"
+                                                               Visibility="{Binding NextRuns, Converter={StaticResource NotEmptyToVisibility}}"/>
+                                                    <TextBlock Style="{StaticResource Hint}" Text="{Binding CronText}" Margin="26,2,0,0" FontFamily="Consolas"
+                                                               Visibility="{Binding ShowCronText, Converter={StaticResource BoolToVisibility}}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <TextBlock Style="{StaticResource FieldError}" Text="{Binding Error}" Margin="0,8,0,0"/>
+                                        </StackPanel>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -193,7 +275,7 @@
                         <TextBlock Style="{StaticResource FieldWarning}"
                                    Text="{Binding Warnings, Converter={StaticResource FieldMessage}, ConverterParameter=Steps}"/>
                         <TextBlock Style="{StaticResource Hint}" Margin="0,20,0,0"
-                                   Text="Cron de 5 campos, en la hora local del equipo. Ejemplos: 0 23 * * * (diario 23:00) · 0 22 * * 0 (domingos 22:00) · */15 * * * * (cada 15 min)."/>
+                                   Text="Las horas son las del equipo. Para un horario especial elija «Avanzado (expresión cron)»."/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -204,6 +286,82 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
                                    Text="El primer destino lo escribe SQL Server directamente (debe poder verlo ese servidor); los demás reciben una copia. Use rutas completas: D:\Backups o \\servidor\recurso. Google Drive solo puede ser una copia (el principal es siempre una carpeta)."/>
+                        <!-- Credenciales de Google: una sola vez, compartidas por todos los destinos de Drive -->
+                        <Border Style="{StaticResource ItemCard}" Background="{StaticResource PrimaryTintBrush}" BorderBrush="#BFDBFE"
+                                Visibility="{Binding HasDrive, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Padding="12,5" Content="{Binding GoogleSetupButtonText}"
+                                            Command="{Binding ToggleGoogleSetupCommand}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE753;" Style="{StaticResource IconText}" FontSize="16"
+                                                   Foreground="{StaticResource PrimaryBrush}" Margin="0,0,10,0"/>
+                                        <TextBlock Text="Credenciales de Google" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/>
+                                        <Border Margin="12,0,0,0" VerticalAlignment="Center">
+                                            <Border.Style>
+                                                <Style TargetType="Border" BasedOn="{StaticResource Chip}">
+                                                    <Setter Property="Background" Value="{StaticResource WarningTintBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding GoogleClientConfigured}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource SuccessTintBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding GoogleStatusText}" FontSize="12" FontWeight="SemiBold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding GoogleClientConfigured}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                           Text="Se piden una sola vez y sirven para todos los destinos de Google Drive."/>
+
+                                <StackPanel Margin="0,14,0,0" Visibility="{Binding ShowGoogleSetup, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Foreground="{StaticResource BodyTextBrush}" TextWrapping="Wrap" LineHeight="22">
+                                        <Run FontWeight="SemiBold" Text="Google exige que cada aplicación tenga su propio identificador. Es gratis y toma unos minutos:"/>
+                                        <LineBreak/>
+                                        <Run Text="1.  Entre en Google Cloud y cree un proyecto."/>
+                                        <LineBreak/>
+                                        <Run Text="2.  Active «Google Drive API»."/>
+                                        <LineBreak/>
+                                        <Run Text="3.  Cree credenciales: «ID de cliente de OAuth» de tipo «Aplicación de escritorio»."/>
+                                        <LineBreak/>
+                                        <Run Text="4.  Copie el ID y el secreto y péguelos aquí abajo."/>
+                                    </TextBlock>
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                        <Button Tag="&#xE774;" Content="Abrir Google Cloud" Command="{Binding OpenGoogleConsoleCommand}"/>
+                                        <Button Tag="&#xE897;" Content="Guía paso a paso" Margin="8,0,0,0" Command="{Binding OpenGoogleGuideCommand}"/>
+                                    </StackPanel>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="14"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="ID de cliente" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                            <TextBox Text="{Binding GoogleClientId, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Secreto de cliente" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                            <PasswordBox PasswordChanged="GoogleSecret_Changed"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Style="{StaticResource Hint}" Text="{Binding GoogleSecretHint}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <ItemsControl ItemsSource="{Binding Destinations}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -221,7 +379,8 @@
                                                 <TextBlock Text="{Binding Role}" Style="{StaticResource SectionTitle}"
                                                            VerticalAlignment="Center"/>
                                             </DockPanel>
-                                            <TextBlock Text="Tipo de destino" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
+                                            <StackPanel Visibility="{Binding CanChooseKind, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="Tipo de destino" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
                                             <ComboBox Width="300" HorizontalAlignment="Left"
                                                       ItemsSource="{Binding Kinds}" SelectedValuePath="Value"
                                                       SelectedValue="{Binding Kind}">
@@ -232,6 +391,7 @@
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
                                             <TextBlock Style="{StaticResource FieldError}" Text="{Binding KindError}"/>
+                                            </StackPanel>
 
                                             <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
                                             <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" MaxLength="60"/>
@@ -252,29 +412,7 @@
 
                                             <!-- Google Drive (API oficial; no usa la unidad virtual G:) -->
                                             <StackPanel Visibility="{Binding IsDrive, Converter={StaticResource BoolToVisibility}}">
-                                                <Grid Margin="0,2,0,0">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="14"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <Grid.RowDefinitions>
-                                                        <RowDefinition Height="Auto"/>
-                                                        <RowDefinition Height="Auto"/>
-                                                        <RowDefinition Height="Auto"/>
-                                                    </Grid.RowDefinitions>
-                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="ID de cliente de Google" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
-                                                    <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}"/>
-                                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldError}" Text="{Binding ClientIdError}"/>
-                                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Secreto de cliente" Style="{StaticResource FieldLabel}" Margin="0,12,0,5"/>
-                                                    <PasswordBox Grid.Row="1" Grid.Column="2" PasswordChanged="DriveSecret_Changed"/>
-                                                    <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource FieldError}" Text="{Binding ClientSecretError}"/>
-                                                </Grid>
-                                                <TextBlock Style="{StaticResource Hint}" Text="{Binding SecretHint}"/>
-                                                <TextBlock Style="{StaticResource Hint}"
-                                                           Text="Cree las credenciales en Google Cloud (tipo «Aplicación de escritorio»). Guía paso a paso: docs/google-drive.md"/>
-
-                                                <TextBlock Text="Cuenta de Google" Style="{StaticResource FieldLabel}" Margin="0,16,0,5"/>
+                                                <TextBlock Text="Cuenta de Google" Style="{StaticResource FieldLabel}" Margin="0,14,0,5"/>
                                                 <StackPanel Orientation="Horizontal">
                                                     <Button Tag="&#xE77B;" Content="Conectar con Google" Command="{Binding ConnectCommand}"/>
                                                     <Button Style="{StaticResource GhostButton}" Tag="&#xE711;" Content="Desconectar" Margin="6,0,0,0"
@@ -306,6 +444,7 @@
                                                 </StackPanel>
                                                 <TextBlock Style="{StaticResource Hint}" Text="{Binding ConnectResult}"
                                                            Visibility="{Binding ConnectResult, Converter={StaticResource NotEmptyToVisibility}}"/>
+                                                <TextBlock Style="{StaticResource FieldError}" Text="{Binding ClientError}"/>
                                                 <TextBlock Style="{StaticResource FieldError}" Text="{Binding AccountError}"/>
 
                                                 <TextBlock Text="Carpeta en Mi unidad" Style="{StaticResource FieldLabel}" Margin="0,16,0,5"/>
@@ -315,7 +454,7 @@
                                                     <TextBox Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}"/>
                                                 </DockPanel>
                                                 <TextBlock Style="{StaticResource Hint}"
-                                                           Text="Se crea sola si no existe (admite subcarpetas con /). Dentro se organiza por servidor, base y tipo."/>
+                                                           Text="Se crea sola si no existe. Dentro se organiza por servidor, base y tipo."/>
                                                 <TextBlock Style="{StaticResource FieldError}" Text="{Binding FolderError}"/>
                                             </StackPanel>
 
@@ -329,6 +468,7 @@
                         <StackPanel Orientation="Horizontal">
                             <Button Tag="&#xE710;" Content="Agregar carpeta" Command="{Binding AddDestinationCommand}"/>
                             <Button Tag="&#xE753;" Content="Agregar Google Drive" Margin="8,0,0,0"
+                                    ToolTip="Primero agregue la carpeta principal: Google Drive es siempre una copia."
                                     Command="{Binding AddDriveDestinationCommand}"/>
                         </StackPanel>
                         <TextBlock Style="{StaticResource FieldError}"

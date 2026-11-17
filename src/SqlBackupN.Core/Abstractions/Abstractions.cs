@@ -60,6 +60,25 @@ public interface IGoogleAuthorizer
     Task<GoogleAuthResult> AuthorizeAsync(string clientId, string clientSecret, CancellationToken ct);
 }
 
+/// <summary>Identificador de la aplicación ante Google (ID y secreto de cliente OAuth, tipo "Aplicación de escritorio").</summary>
+/// <param name="ClientId">ID de cliente.</param>
+/// <param name="ClientSecret">Secreto de cliente, en claro (solo en memoria).</param>
+public sealed record GoogleClient(string ClientId, string ClientSecret);
+
+/// <summary>
+/// Credenciales de Google compartidas por todos los destinos de Google Drive, para pedirlas
+/// una sola vez. Pueden venir incluidas con la aplicación (archivo <c>google-client.json</c> junto al ejecutable)
+/// o haberlas guardado el usuario (cifradas) en la carpeta de datos.
+/// </summary>
+public interface IGoogleClientProvider
+{
+    /// <summary>Credenciales vigentes (las del usuario y, si no hay, las incluidas con la aplicación), o <c>null</c>.</summary>
+    GoogleClient? GetDefault();
+
+    /// <summary>Guarda las credenciales del usuario (cifradas) para todos los destinos.</summary>
+    void SaveDefault(GoogleClient client);
+}
+
 /// <summary>Habla con SQL Server: lista bases, ejecuta y verifica backups.</summary>
 public interface IBackupExecutor
 {

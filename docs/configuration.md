@@ -26,7 +26,25 @@ esa carpeta. La cuenta del servicio solo necesita lectura de `jobs.json` y escri
 | `retention` | `keepDays` y/o `keepLast` |
 | `notifications` | `webhookUrl`, `onSuccess`, `onWarning`, `onFailure` |
 
-## Programación (cron de 5 campos)
+## Programación
+
+En el editor **no hace falta escribir ninguna expresión**: cada paso se configura eligiendo la **frecuencia** en una lista, la
+**hora y los minutos** con selectores numéricos y los **días de la semana** con botones. Por debajo se guarda siempre
+la expresión cron, así que los `jobs.json` anteriores y los escritos a mano siguen funcionando.
+
+| Frecuencia en el editor | Qué pide | Cron que genera (ejemplo) |
+|---|---|---|
+| Todos los días | Hora y minuto | `0 23 * * *` |
+| Días de la semana | Días + hora y minuto | `0 22 * * 1-5` |
+| Cada pocas horas | Cada 1, 2, 3, 4, 6, 8 o 12 horas, en el minuto M (+ días) | `0 */6 * * *` |
+| Cada pocos minutos | Cada 1, 2, 3, 4, 5, 6, 10, 12, 15, 20 o 30 minutos (+ días) | `*/15 * * * *` |
+| Una vez al mes | Día del mes + hora y minuto | `30 2 1 * *` |
+| Avanzado (expresión cron) | El cron escrito a mano, para horarios especiales | `0 9-17 * * 1-5` |
+
+Si un `jobs.json` trae un cron que no encaja en las frecuencias anteriores, el paso se abre en modo **Avanzado**.
+El panel principal también describe cada horario en palabras («De lunes a viernes a las 22:00»).
+
+### Cron de 5 campos (referencia)
 
 `minuto hora día-del-mes mes día-de-la-semana`, en la hora local del equipo.
 
@@ -47,15 +65,18 @@ Cada destino tiene `name`, `kind` (`Folder` o `GoogleDrive`) y, según el tipo:
 | `kind` | Campos |
 |---|---|
 | `Folder` | `path` — carpeta completa (`D:\Backups` o `\\servidor\recurso`) |
-| `GoogleDrive` | `drive.clientId`, `drive.protectedClientSecret`, `drive.protectedRefreshToken`, `drive.accountEmail`, `drive.folderName` |
+| `GoogleDrive` | `drive.protectedRefreshToken`, `drive.accountEmail`, `drive.folderName` (más `drive.clientId` y `drive.protectedClientSecret` solo en destinos de versiones anteriores) |
 
 El destino principal (el primero) debe ser una carpeta. Los campos protegidos **no se escriben a mano**: los genera el editor al conectar la cuenta (cifrados con DPAPI). Detalles y pasos para crear las credenciales en [google-drive.md](google-drive.md).
 
 ```json
 { "name": "Google Drive", "kind": "GoogleDrive", "path": "",
-  "drive": { "clientId": "…apps.googleusercontent.com", "protectedClientSecret": "(cifrado)",
-             "protectedRefreshToken": "(cifrado)", "accountEmail": "usted@gmail.com", "folderName": "SQL Backup N" } }
+  "drive": { "protectedRefreshToken": "(cifrado)", "accountEmail": "usted@gmail.com", "folderName": "SQL Backup N" } }
 ```
+
+Las **credenciales de Google** (ID y secreto de cliente) son **comunes a todos los destinos**: se piden una sola vez en el editor y
+se guardan en `%ProgramData%\Centinela\SqlBackupN\google-client.json` (secreto cifrado), o vienen incluidas con la aplicación
+en un `google-client.json` junto al ejecutable. Ver [google-drive.md](google-drive.md).
 
 ## Plantilla de ruta
 

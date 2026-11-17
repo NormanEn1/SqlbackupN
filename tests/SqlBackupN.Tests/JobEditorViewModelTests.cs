@@ -32,7 +32,7 @@ public class JobEditorViewModelTests
         var remote = new StubRemote();
         var authorizer = new StubAuthorizer();
         var dialogs = new StubDialogs();
-        var services = new EditorServices(new StubProtector(), executor, files, remote, authorizer, dialogs, TimeProvider.System);
+        var services = new EditorServices(new StubProtector(), executor, files, remote, authorizer, new StubGoogleClients(), dialogs, TimeProvider.System);
         // El editor trabaja sobre una copia, igual que la ventana principal.
         var editor = new JobEditorViewModel(JobFactory.Clone(source), isNew, otherNames, services);
         return new Rig(editor, executor, files, dialogs, source, remote, authorizer);

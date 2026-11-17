@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using Microsoft.Win32;
 using SqlBackupN.App.Views;
@@ -28,6 +29,19 @@ public sealed class WpfDialogService : IDialogService
     /// <inheritdoc />
     public void ShowMessage(string title, string message) =>
         MessageBox.Show(Application.Current.MainWindow, message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+
+    /// <inheritdoc />
+    public void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ShowMessage("No se pudo abrir el navegador", $"Abra esta dirección a mano:\n{url}\n\n{ex.Message}");
+        }
+    }
 
     /// <inheritdoc />
     public string? PickFolder(string? initialDirectory)

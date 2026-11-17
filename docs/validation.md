@@ -57,8 +57,10 @@ Cada problema se asocia a un **campo** (`Name`, `Connection.Server`, `Steps[0].C
 | Carpeta única (se ignoran mayúsculas y la `\` final) | Error |
 | Un solo destino (regla 3-2-1) | Advertencia |
 | **Google Drive:** no puede ser el destino principal (SQL Server escribe allí) | Error |
-| **Google Drive:** ID de cliente, secreto de cliente y cuenta conectada obligatorios | Error |
+| **Google Drive:** credenciales de Google (compartidas o propias del destino) y cuenta conectada obligatorias | Error |
 | **Google Drive:** carpeta obligatoria, sin `< > : " \| ? *` ni `.`/`..`, y única entre destinos de Drive | Error |
+
+Además, el editor impide guardar un paso por días (semanal, cada pocas horas o minutos) **sin ningún día marcado**.
 
 ## Opciones
 

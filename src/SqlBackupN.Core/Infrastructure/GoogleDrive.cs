@@ -18,7 +18,7 @@ namespace SqlBackupN.Core.Infrastructure;
 /// Destino remoto en Google Drive mediante su API oficial. No usa la unidad virtual <c>G:\</c>, así que
 /// funciona desde un servicio de Windows sin sesión de usuario. Permiso <c>drive.file</c>: solo ve lo que crea.
 /// </summary>
-public sealed class GoogleDriveStorage(ISecretProtector protector) : IRemoteStorage
+public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClientProvider clients) : IRemoteStorage
 {
     private const string FolderMime = "application/vnd.google-apps.folder";
 
@@ -147,8 +147,7 @@ public sealed class GoogleDriveStorage(ISecretProtector protector) : IRemoteStor
     private static DriveSettings Require(DestinationConfig destination)
     {
         var drive = destination.Drive;
-        if (drive is null || string.IsNullOrWhiteSpace(drive.ClientId) ||
-            string.IsNullOrEmpty(drive.ProtectedClientSecret) || string.IsNullOrEmpty(drive.ProtectedRefreshToken))
+        if (drive is null || string.IsNullOrEmpty(drive.ProtectedRefreshToken))
         {
             throw new InvalidOperationException(
                 $"El destino '{destination.Name}' no tiene la cuenta de Google conectada. Edite el job y pulse «Conectar con Google».");
@@ -156,14 +155,27 @@ public sealed class GoogleDriveStorage(ISecretProtector protector) : IRemoteStor
         return drive;
     }
 
+    /// <summary>
+    /// Credenciales del destino (si las trae, de versiones anteriores) o las compartidas por todos los destinos.
+    /// </summary>
+    private GoogleClient ResolveClient(DriveSettings drive)
+    {
+        if (!string.IsNullOrWhiteSpace(drive.ClientId) && !string.IsNullOrEmpty(drive.ProtectedClientSecret))
+            return new GoogleClient(drive.ClientId, protector.Unprotect(drive.ProtectedClientSecret));
+
+        return clients.GetDefault() ?? throw new InvalidOperationException(
+            "Faltan las credenciales de Google. Se configuran una sola vez en el editor (pestaña Destinos → Credenciales de Google).");
+    }
+
     private DriveService CreateService(DriveSettings drive)
     {
+        var client = ResolveClient(drive);
         var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
         {
             ClientSecrets = new ClientSecrets
             {
-                ClientId = drive.ClientId,
-                ClientSecret = protector.Unprotect(drive.ProtectedClientSecret!)
+                ClientId = client.ClientId,
+                ClientSecret = client.ClientSecret
             },
             Scopes = [DriveService.Scope.DriveFile]
         });

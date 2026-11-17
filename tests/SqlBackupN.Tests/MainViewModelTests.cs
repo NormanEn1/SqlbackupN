@@ -26,7 +26,7 @@ public class MainViewModelTests
         var history = new MemoryHistoryStore();
         var runner = new JobRunner(executor, files, new StubRemote(), history, new StubNotifier(), TimeProvider.System,
             NullLogger<JobRunner>.Instance);
-        var main = new MainViewModel(store, history, runner, dialogs, new StubProtector(), executor, files, new StubRemote(), new StubAuthorizer(), TimeProvider.System);
+        var main = new MainViewModel(store, history, runner, dialogs, new StubProtector(), executor, files, new StubRemote(), new StubAuthorizer(), new StubGoogleClients(), TimeProvider.System);
         return new Rig(main, store, dialogs);
     }
 
@@ -167,7 +167,7 @@ public class MainViewModelTests
         Assert.Contains("Ventas, Compras", rig.Main.DatabasesText);
         Assert.Contains("Excluye: Temp", rig.Main.DatabasesText);
         Assert.Equal("14 días, mínimo 2 archivos", rig.Main.RetentionText);
-        Assert.Contains("Completo: 0 23 * * *", rig.Main.ScheduleText);
+        Assert.Contains("Completo: Todos los días a las 23:00", rig.Main.ScheduleText);
         Assert.Contains("Principal: Local → D:\\Backups", rig.Main.DestinationsText);
     }
 }
