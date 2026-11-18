@@ -149,7 +149,7 @@ dotnet test SqlBackupN.sln
 - [Reglas de validación](docs/validation.md)
 - [Sistema de diseño de la interfaz](docs/design.md)
 - [Hoja de ruta](docs/roadmap.md)
-- [Cómo contribuir](CONTRIBUTING.md) · [Seguridad](SECURITY.md) · [Cambios](CHANGELOG.md)
+- [Contribuciones](CONTRIBUTING.md) · [Seguridad](SECURITY.md) · [Cambios](CHANGELOG.md)
 
 ## Estado
 

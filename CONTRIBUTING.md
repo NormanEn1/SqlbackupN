@@ -1,32 +1,14 @@
-# Cómo contribuir
+# Contribuciones
 
-¡Gracias por querer ayudar! SQL Backup N es software libre (MIT) de Centinela Appliance.
+SQL Backup N es software libre (licencia [MIT](LICENSE)) de Centinela Appliance, pero **este repositorio no acepta contribuciones**:
+no se atienden *pull requests* ni se aceptan cambios de código o documentación de terceros.
 
-## Flujo de trabajo
+## Lo que sí puede hacer
 
-1. Abra un *issue* describiendo el problema o la mejora (o comente uno existente).
-2. Haga un *fork* y cree una rama: `feature/...`, `fix/...` o `docs/...`.
-3. Siga las [reglas de desarrollo](docs/rules.md): arquitectura, seguridad, código, pruebas y documentación.
-4. Compile y pruebe:
+- **Usarlo, copiarlo y modificarlo** libremente, también con fines comerciales, conservando el aviso de la licencia MIT.
+- **Hacer un *fork*** y llevar su propia versión en la dirección que prefiera.
+- **Reportar vulnerabilidades** de forma privada: vea [SECURITY.md](SECURITY.md). No las publique en *issues*.
 
-   ```bash
-   dotnet build SqlBackupN.sln
-   dotnet test SqlBackupN.sln
-   ```
+## Reglas internas
 
-5. Abra un *pull request* con una descripción clara, las pruebas incluidas y `CHANGELOG.md` actualizado.
-
-## Qué se espera de un PR
-
-- Compila sin advertencias y las pruebas pasan.
-- Reglas de negocio nuevas con prueba unitaria; un *bug* con la prueba que lo reproduce.
-- Documentación XML en lo público y documentos de `docs/` al día.
-- Sin datos reales (cadenas de conexión, contraseñas, backups, `jobs.json`).
-
-## Vulnerabilidades
-
-No las reporte en *issues* públicos: vea [SECURITY.md](SECURITY.md).
-
-## Conducta
-
-Sea respetuoso y constructivo. Se critica el código, no a las personas.
+Las [reglas de desarrollo](docs/rules.md) describen cómo se mantiene el proyecto; sirven de referencia si hace su propio *fork*.
