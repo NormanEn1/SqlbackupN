@@ -22,39 +22,39 @@ Las imágenes usan **datos ficticios de demostración**. Se regeneran con
 
 **Panel principal** — lista de jobs con su último estado, configuración en tarjetas, historial (se puede borrar una ejecución, todo el historial de un job o el de todos) y, al ejecutar, el registro paso a paso. El botón «Tema» de la barra lateral cambia entre modo automático, claro y oscuro:
 
-![Panel principal](docs/screenshots/01-panel-principal.png?v=9809425d)
+![Panel principal](docs/screenshots/01-panel-principal.png?v=b58ecec2)
 
 **Bienvenida** — sin jobs, la aplicación guía hacia el primero:
 
-![Bienvenida](docs/screenshots/04-bienvenida.png?v=a055a34f)
+![Bienvenida](docs/screenshots/04-bienvenida.png?v=a8d1a602)
 
 **Job con advertencia** (falló la copia a un destino secundario) y **job con fallo** (el motivo se ve en el historial):
 
-![Job con advertencia](docs/screenshots/02-job-con-advertencia.png?v=c262c0e0)
-![Job con fallo](docs/screenshots/03-job-con-fallo.png?v=b4c1466f)
+![Job con advertencia](docs/screenshots/02-job-con-advertencia.png?v=6d24fa7e)
+![Job con fallo](docs/screenshots/03-job-con-fallo.png?v=7a9c7be5)
 
 ### Editor de jobs
 
 Todas las opciones del job se administran desde el editor, organizadas por pestañas:
 
-![Editor: general y servidor](docs/screenshots/05-editor-general.png?v=b16156f0)
-![Editor: programación](docs/screenshots/06-editor-programacion.png?v=926b42d4)
-![Editor: destinos](docs/screenshots/07-editor-destinos.png?v=27b35e6b)
+![Editor: general y servidor](docs/screenshots/05-editor-general.png?v=44d982a5)
+![Editor: programación](docs/screenshots/06-editor-programacion.png?v=903d0432)
+![Editor: destinos](docs/screenshots/07-editor-destinos.png?v=24b1dd09)
 ![Editor: bases de datos](docs/screenshots/16-editor-bases-de-datos.png?v=b95765cc)
-![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png?v=05b64fc5)
-![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png?v=d1865d7f)
+![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png?v=9f082346)
+![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png?v=6e3845da)
 
 **Validación en vivo** — cada dato se comprueba mientras se escribe. Lo que *falta* por rellenar se muestra en tono neutro («Faltan 2 datos para poder guardar») y solo lo *incorrecto* sale en rojo; el resumen indica en qué pestaña está cada cosa (también al abrir un `jobs.json` escrito a mano):
 
-![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png?v=352efadf)
-![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png?v=3c4b6a4e)
-![Nuevo job](docs/screenshots/12-editor-nuevo-job.png?v=f72448a6)
+![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png?v=68cc29d2)
+![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png?v=0c3c83b9)
+![Nuevo job](docs/screenshots/12-editor-nuevo-job.png?v=5ef0e4e6)
 
 **Destino Google Drive** — credenciales de su proyecto de Google Cloud, conexión de la cuenta con un clic (autorización una sola vez en el navegador) y carpeta de destino; el servicio sube después una copia por HTTPS:
 
-![Google Drive conectado](docs/screenshots/13-editor-google-drive.png?v=3bd55c34)
-![Credenciales de Google, pasos guiados](docs/screenshots/15-editor-google-credenciales.png?v=01400512)
-![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png?v=076f7a3b)
+![Google Drive conectado](docs/screenshots/13-editor-google-drive.png?v=d6b91629)
+![Credenciales de Google, pasos guiados](docs/screenshots/15-editor-google-credenciales.png?v=bf8bac81)
+![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png?v=e05ebd37)
 
 ## Componentes
 

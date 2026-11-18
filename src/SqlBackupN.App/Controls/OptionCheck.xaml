@@ -7,7 +7,7 @@
               AutomationProperties.Name="{Binding Label, RelativeSource={RelativeSource AncestorType=UserControl}}">
         <StackPanel>
             <!-- Se usan TextBlock (no texto como Content): WPF trataría "_" como tecla de acceso y lo ocultaría. -->
-            <TextBlock Text="{Binding Label, RelativeSource={RelativeSource AncestorType=UserControl}}" FontWeight="SemiBold"/>
+            <TextBlock Style="{StaticResource BodyText}" Text="{Binding Label, RelativeSource={RelativeSource AncestorType=UserControl}}" FontWeight="SemiBold"/>
             <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
                        Text="{Binding Hint, RelativeSource={RelativeSource AncestorType=UserControl}}"
                        Visibility="{Binding Hint, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NotEmptyToVisibility}}"/>

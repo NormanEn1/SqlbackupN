@@ -52,13 +52,13 @@
                         <TextBlock Text="Autenticación" Style="{StaticResource FieldLabel}"/>
                         <RadioButton GroupName="auth" IsChecked="{Binding UseWindowsAuthentication}" Margin="0,2,0,0">
                             <StackPanel>
-                                <TextBlock Text="Windows" FontWeight="SemiBold"/>
+                                <TextBlock Style="{StaticResource BodyText}" Text="Windows" FontWeight="SemiBold"/>
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Recomendada: usa la cuenta del servicio."/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton GroupName="auth" IsChecked="{Binding UseSqlAuthentication, Mode=OneWay}"
                                      Checked="SqlAuth_Checked" Margin="0,10,0,0">
-                            <TextBlock Text="Usuario y contraseña de SQL Server" FontWeight="SemiBold"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="Usuario y contraseña de SQL Server" FontWeight="SemiBold"/>
                         </RadioButton>
 
                         <Border Margin="28,10,0,0" Padding="16,0,16,14" CornerRadius="8" Background="{DynamicResource SurfaceAltBrush}"
@@ -107,13 +107,13 @@
                         <TextBlock Text="¿Qué bases se respaldan?" Style="{StaticResource GroupTitle}" Margin="0,2,0,6"/>
                         <RadioButton GroupName="dbmode" IsChecked="{Binding IsAllDatabases}">
                             <StackPanel>
-                                <TextBlock Text="Todas las bases de usuario" FontWeight="SemiBold"/>
+                                <TextBlock Style="{StaticResource BodyText}" Text="Todas las bases de usuario" FontWeight="SemiBold"/>
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Incluye las que se creen después."/>
                             </StackPanel>
                         </RadioButton>
                         <RadioButton GroupName="dbmode" IsChecked="{Binding IsExplicitDatabases}" Margin="0,12,0,0">
                             <StackPanel>
-                                <TextBlock Text="Solo las que indique" FontWeight="SemiBold"/>
+                                <TextBlock Style="{StaticResource BodyText}" Text="Solo las que indique" FontWeight="SemiBold"/>
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="Puede incluir bases de sistema como msdb."/>
                             </StackPanel>
                         </RadioButton>
@@ -141,7 +141,7 @@
                                                     <!-- El nombre va en un TextBlock: como Content, WPF trataría "_" como tecla de acceso y lo ocultaría. -->
                                                     <CheckBox IsChecked="{Binding IsSelected}" Margin="2,5,2,3"
                                                               AutomationProperties.Name="{Binding Label}">
-                                                        <TextBlock Text="{Binding Label}"/>
+                                                        <TextBlock Style="{StaticResource BodyText}" Text="{Binding Label}"/>
                                                     </CheckBox>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -176,7 +176,7 @@
                                        Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Databases.Names}"/>
                         </StackPanel>
                         <RadioButton GroupName="dbmode" IsChecked="{Binding IsPatternDatabases}" Margin="0,16,0,0">
-                            <TextBlock Text="Las bases cuyo nombre coincida con un patrón" FontWeight="SemiBold"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="Las bases cuyo nombre coincida con un patrón" FontWeight="SemiBold"/>
                         </RadioButton>
                         <StackPanel Margin="28,8,0,0" IsEnabled="{Binding IsPatternDatabases}">
                             <TextBox Text="{Binding Pattern, UpdateSourceTrigger=PropertyChanged}"/>
@@ -202,7 +202,7 @@
                         <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14"
                                    Text="Cada paso es un tipo de backup con su horario. El diferencial y el log necesitan un completo en el mismo job."/>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <TextBlock Text="Planes rápidos" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="Planes rápidos" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <Button Content="Completo diario" Margin="0,0,8,0"
                                     Command="{Binding ApplyPlanCommand}" CommandParameter="DailyFull"/>
                             <Button Content="Semanal + diferencial" Margin="0,0,8,0"
@@ -232,7 +232,7 @@
                                                               SelectedValuePath="Value" SelectedValue="{Binding Type}">
                                                         <ComboBox.ItemTemplate>
                                                             <DataTemplate>
-                                                                <TextBlock Text="{Binding Label}"/>
+                                                                <TextBlock Style="{StaticResource BodyText}" Text="{Binding Label}"/>
                                                             </DataTemplate>
                                                         </ComboBox.ItemTemplate>
                                                     </ComboBox>
@@ -242,7 +242,7 @@
                                                     <ComboBox ItemsSource="{Binding Modes}" SelectedValuePath="Value" SelectedValue="{Binding Mode}">
                                                         <ComboBox.ItemTemplate>
                                                             <DataTemplate>
-                                                                <TextBlock Text="{Binding Label}"/>
+                                                                <TextBlock Style="{StaticResource BodyText}" Text="{Binding Label}"/>
                                                             </DataTemplate>
                                                         </ComboBox.ItemTemplate>
                                                     </ComboBox>
@@ -257,36 +257,36 @@
                                             <WrapPanel Margin="0,16,0,0">
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
                                                             Visibility="{Binding ShowMonthDay, Converter={StaticResource BoolToVisibility}}">
-                                                    <TextBlock Text="El día" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text="El día" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                                     <ctl:NumberSpinner Value="{Binding DayOfMonth}" Minimum="1" Maximum="31" Format="D"
                                                                        AutomationProperties.Name="Día del mes"/>
-                                                    <TextBlock Text="de cada mes" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text="de cada mes" VerticalAlignment="Center" Margin="10,0,0,0"/>
                                                 </StackPanel>
 
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
                                                             Visibility="{Binding ShowHourInterval, Converter={StaticResource BoolToVisibility}}">
-                                                    <TextBlock Text="Cada" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text="Cada" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                                     <ComboBox Width="84" ItemsSource="{Binding HourIntervals}" SelectedItem="{Binding IntervalHours}"
                                                               AutomationProperties.Name="Cada cuántas horas"/>
-                                                    <TextBlock Text="horas, en el minuto" VerticalAlignment="Center" Margin="10,0,10,0"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text="horas, en el minuto" VerticalAlignment="Center" Margin="10,0,10,0"/>
                                                     <ctl:NumberSpinner Value="{Binding Minute}" Minimum="0" Maximum="59" Wrap="True"
                                                                        AutomationProperties.Name="Minuto"/>
                                                 </StackPanel>
 
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
                                                             Visibility="{Binding ShowMinuteInterval, Converter={StaticResource BoolToVisibility}}">
-                                                    <TextBlock Text="Cada" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text="Cada" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                                     <ComboBox Width="84" ItemsSource="{Binding MinuteIntervals}" SelectedItem="{Binding IntervalMinutes}"
                                                               AutomationProperties.Name="Cada cuántos minutos"/>
-                                                    <TextBlock Text="minutos" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text="minutos" VerticalAlignment="Center" Margin="10,0,0,0"/>
                                                 </StackPanel>
 
                                                 <StackPanel Orientation="Horizontal" Margin="0,0,24,6"
                                                             Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}">
-                                                    <TextBlock Text="A las" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text="A las" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                                     <ctl:NumberSpinner Value="{Binding Hour}" Minimum="0" Maximum="23" Wrap="True"
                                                                        AutomationProperties.Name="Hora"/>
-                                                    <TextBlock Text=":" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,8,2"/>
+                                                    <TextBlock Style="{StaticResource BodyText}" Text=":" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,8,2"/>
                                                     <ctl:NumberSpinner Value="{Binding Minute}" Minimum="0" Maximum="59" Wrap="True"
                                                                        AutomationProperties.Name="Minuto"/>
                                                     <TextBlock Text="h" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="8,0,0,0"/>
@@ -296,7 +296,7 @@
                                             <!-- Días de la semana -->
                                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                                                         Visibility="{Binding ShowDays, Converter={StaticResource BoolToVisibility}}">
-                                                <TextBlock Text="Días" VerticalAlignment="Center" Margin="0,0,14,0" FontWeight="SemiBold"/>
+                                                <TextBlock Style="{StaticResource BodyText}" Text="Días" VerticalAlignment="Center" Margin="0,0,14,0" FontWeight="SemiBold"/>
                                                 <ToggleButton Style="{StaticResource DayChip}" Content="Lun" IsChecked="{Binding Monday}" Margin="0,0,6,0"/>
                                                 <ToggleButton Style="{StaticResource DayChip}" Content="Mar" IsChecked="{Binding Tuesday}" Margin="0,0,6,0"/>
                                                 <ToggleButton Style="{StaticResource DayChip}" Content="Mié" IsChecked="{Binding Wednesday}" Margin="0,0,6,0"/>
@@ -456,7 +456,7 @@
                                                       SelectedValue="{Binding Kind}">
                                                 <ComboBox.ItemTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding Label}"/>
+                                                        <TextBlock Style="{StaticResource BodyText}" Text="{Binding Label}"/>
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
@@ -635,7 +635,7 @@
                             <CheckBox Content="Borrar backups con más de" IsChecked="{Binding UseKeepDays}" VerticalAlignment="Center" Margin="0"/>
                             <TextBox Width="80" Margin="12,0" IsEnabled="{Binding UseKeepDays}"
                                      Text="{Binding KeepDaysText, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="días" VerticalAlignment="Center"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="días" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Style="{StaticResource FieldError}"
                                    Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Retention.KeepDays}"/>
@@ -643,7 +643,7 @@
                             <CheckBox Content="Conservar siempre al menos los" IsChecked="{Binding UseKeepLast}" VerticalAlignment="Center" Margin="0"/>
                             <TextBox Width="80" Margin="12,0" IsEnabled="{Binding UseKeepLast}"
                                      Text="{Binding KeepLastText, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="más recientes" VerticalAlignment="Center"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="más recientes" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Style="{StaticResource FieldError}"
                                    Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Retention.KeepLast}"/>
@@ -674,7 +674,7 @@
                                   SelectedValuePath="Value" SelectedValue="{Binding WebhookFormat}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Label}"/>
+                                    <TextBlock Style="{StaticResource BodyText}" Text="{Binding Label}"/>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
@@ -697,7 +697,7 @@
                                   SelectedValuePath="Value" SelectedValue="{Binding WebhookAuth}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Label}"/>
+                                    <TextBlock Style="{StaticResource BodyText}" Text="{Binding Label}"/>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
@@ -729,11 +729,11 @@
 
                         <TextBlock Text="Envío" Style="{StaticResource FieldLabel}" Margin="0,18,0,5"/>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Reintentos" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="Reintentos" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <TextBox Width="64" Text="{Binding WebhookRetriesText, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="Esperar hasta" VerticalAlignment="Center" Margin="24,0,10,0"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="Esperar hasta" VerticalAlignment="Center" Margin="24,0,10,0"/>
                             <TextBox Width="72" Text="{Binding WebhookTimeoutText, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="segundos por intento" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="segundos por intento" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         </StackPanel>
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="Se reintenta solo ante fallos de red o errores temporales del servicio (no ante un 401 o un 404, que no mejoran). Reintentos: 0 a 5. Espera: 5 a 120 s."/>
@@ -753,9 +753,9 @@
                                          Hint="Avisa si pasan demasiadas horas sin ninguna ejecución. Lo detecta el servicio de Windows mientras está en marcha: no sirve si el propio servicio o el servidor están apagados."
                                          IsChecked="{Binding UseMissedRun}"/>
                         <StackPanel Orientation="Horizontal" Margin="28,8,0,0" IsEnabled="{Binding UseMissedRun}">
-                            <TextBlock Text="Avisar tras" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="Avisar tras" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <TextBox Width="80" Text="{Binding MissedRunHoursText, UpdateSourceTrigger=PropertyChanged}"/>
-                            <TextBlock Text="horas sin ejecutarse" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            <TextBlock Style="{StaticResource BodyText}" Text="horas sin ejecutarse" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         </StackPanel>
                         <TextBlock Style="{StaticResource FieldError}"
                                    Text="{Binding Errors, Converter={StaticResource FieldMessage}, ConverterParameter=Notifications.MissedRunHours}"/>
