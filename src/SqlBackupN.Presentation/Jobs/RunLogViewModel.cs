@@ -13,6 +13,7 @@ public sealed class RunLogViewModel : ViewModelBase
     private string _subtitle;
     private string _kind = "none";
     private bool _isRunning;
+    private readonly DateTime _startedUtc = DateTime.UtcNow;
 
     /// <summary>Crea un registro vacío. Con <paramref name="isRunning"/> queda «en curso» hasta llamar a <see cref="Finish"/>.</summary>
     /// <param name="title">Título de la ventana.</param>
@@ -41,6 +42,38 @@ public sealed class RunLogViewModel : ViewModelBase
 
     /// <summary>Todo el registro como texto, para copiarlo.</summary>
     public string AsText => string.Join(Environment.NewLine, Lines.Select(l => $"{l.Time}  {l.Text}"));
+
+    /// <summary>
+    /// Consulta opcional del historial: devuelve el registro guardado de esta ejecución cuando ya terminó. Sirve de red de
+    /// seguridad: si el aviso de fin no llegó a la ventana, <see cref="CheckCompletionAsync"/> la pone al día igualmente.
+    /// </summary>
+    public Func<Task<JobRunRecord?>>? Probe { get; set; }
+
+    /// <summary>Mientras corre, actualiza el tiempo transcurrido junto al estado («En curso… 00:45») para que se vea que sigue viva.</summary>
+    public void Tick()
+    {
+        if (!IsRunning) return;
+        var elapsed = DateTime.UtcNow - _startedUtc;
+        Subtitle = $"En curso… {(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00}";
+    }
+
+    /// <summary>
+    /// Si la ejecución ya quedó guardada en el historial pero esta ventana seguía «en curso», copia su registro completo y la da por terminada.
+    /// Devuelve <c>true</c> si hizo ese ajuste.
+    /// </summary>
+    public async Task<bool> CheckCompletionAsync()
+    {
+        if (!IsRunning || Probe is null) return false;
+        JobRunRecord? record;
+        try { record = await Probe(); }
+        catch (Exception) { return false; }   // el historial no se pudo leer ahora: se reintenta en el próximo ciclo
+        if (record is null || !IsRunning) return false;
+
+        Lines.Clear();
+        foreach (var entry in record.Log) Add(entry);
+        Finish(record.Status);
+        return true;
+    }
 
     /// <summary>Agrega una línea (la ventana la muestra de inmediato).</summary>
     public void Add(RunLogEntry entry) => Lines.Add(RunLogLine.From(entry));

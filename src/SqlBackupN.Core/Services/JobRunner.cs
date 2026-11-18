@@ -186,7 +186,17 @@ public sealed class JobRunner(
             log.Info(result.Database, $"Copiando a '{destination.Name}' ({DescribeKind(destination.Kind)})…");
             if (destination.Kind == DestinationKind.GoogleDrive)
             {
-                await remote.UploadAsync(destination, source, relative, ct);
+                // La subida puede tardar minutos: se anota cada 10 % para que quien mira el registro vea que avanza.
+                var total = Math.Max(1, files.GetSize(source));
+                var lastTenth = 0L;
+                var sent = new InlineProgress<long>(bytes =>
+                {
+                    var tenth = Math.Min(10, bytes * 10 / total);
+                    if (tenth <= lastTenth || tenth >= 10) return;
+                    lastTenth = tenth;
+                    log.Info(result.Database, $"Subiendo a '{destination.Name}': {tenth * 10} % ({FormatSize(bytes)} de {FormatSize(total)})…");
+                });
+                await remote.UploadAsync(destination, source, relative, ct, sent);
             }
             else
             {
@@ -368,6 +378,12 @@ public sealed class JobRunner(
         duration.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture);
 
     /// <summary>Agrega líneas al registro de la ejecución y las informa a quien las esté siguiendo.</summary>
+    /// <summary>Progreso que ejecuta el aviso en el mismo hilo que lo informa (a diferencia de <see cref="Progress{T}"/>).</summary>
+    private sealed class InlineProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
+    }
+
     private sealed class RunLog(JobRunRecord record, IProgress<RunLogEntry>? progress, TimeProvider clock)
     {
         public void Info(string? database, string message) => Add(RunLogLevel.Info, database, message);

@@ -15,13 +15,28 @@ public partial class RunLogWindow : Window
     public RunLogWindow()
     {
         InitializeComponent();
+
+        // Cada segundo: tiempo transcurrido y, cada 3 s, comprobación de que la ejecución no terminó sin que la ventana se enterara.
+        var ticks = 0;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        timer.Tick += async (_, _) =>
+        {
+            if (DataContext is not RunLogViewModel running) return;
+            if (!running.IsRunning) { timer.Stop(); return; }
+            running.Tick();
+            if (++ticks % 3 == 0 && await running.CheckCompletionAsync())
+                _ = LogScroll.Dispatcher.BeginInvoke(LogScroll.ScrollToEnd, DispatcherPriority.Background);
+        };
+        timer.Start();
+        Closed += (_, _) => timer.Stop();
+
         DataContextChanged += (_, e) =>
         {
             if (e.NewValue is not RunLogViewModel vm) return;
             vm.Lines.CollectionChanged += (_, args) =>
             {
                 if (args.Action == NotifyCollectionChangedAction.Add)
-                    LogScroll.Dispatcher.BeginInvoke(LogScroll.ScrollToEnd, DispatcherPriority.Background);
+                    _ = LogScroll.Dispatcher.BeginInvoke(LogScroll.ScrollToEnd, DispatcherPriority.Background);
             };
         };
     }

@@ -32,7 +32,13 @@ public interface IRemoteStorage
     /// Sube un archivo local. <paramref name="relativePath"/> incluye las subcarpetas y el nombre
     /// (con <c>\</c> o <c>/</c>); las carpetas que falten se crean. Verifica la integridad al terminar.
     /// </summary>
-    Task UploadAsync(DestinationConfig destination, string localFilePath, string relativePath, CancellationToken ct);
+    /// <param name="destination">Destino remoto.</param>
+    /// <param name="localFilePath">Archivo local que se sube.</param>
+    /// <param name="relativePath">Ruta relativa (subcarpetas y nombre) dentro del destino.</param>
+    /// <param name="ct">Cancelación.</param>
+    /// <param name="progress">Opcional: recibe los bytes ya enviados a medida que avanza la subida.</param>
+    Task UploadAsync(
+        DestinationConfig destination, string localFilePath, string relativePath, CancellationToken ct, IProgress<long>? progress = null);
 
     /// <summary>Lista los archivos con la extensión indicada de una carpeta (vacío si la carpeta no existe).</summary>
     Task<IReadOnlyList<RemoteFile>> ListAsync(

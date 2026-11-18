@@ -407,6 +407,10 @@ public sealed class MainViewModel : ViewModelBase
 
         // Cada paso del backup aparece apenas ocurre en una ventana aparte, que se puede dejar abierta.
         var log = new RunLogViewModel($"Registro de ejecución · {item.Job.Name}", isRunning: true);
+        var startedUtc = DateTime.UtcNow.AddSeconds(-2);
+        var jobId = item.Job.Id;
+        log.Probe = async () =>
+            (await _history.GetRecentAsync(jobId, 5)).FirstOrDefault(r => r.StartedUtc >= startedUtc);
         _dialogs.ShowRunLog(log);
         var progress = new UiProgress<RunLogEntry>(log.Add);
         JobRunRecord record;

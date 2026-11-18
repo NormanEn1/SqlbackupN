@@ -266,6 +266,20 @@ public class DriveJobRunnerTests
     }
 
     [Fact]
+    public async Task A_long_upload_writes_its_progress_to_the_run_log_every_ten_percent()
+    {
+        var (runner, remote, _) = Build();
+        remote.ProgressBytes.AddRange([100, 300, 1024, 1100, 2048]);   // el archivo simulado pesa 2048 bytes
+
+        var record = await runner.RunStepAsync(Job(), new BackupStep(), false, CancellationToken.None);
+
+        var lines = record.Log.Select(e => e.Message).Where(m => m.StartsWith("Subiendo a 'Drive'")).ToList();
+        Assert.Equal(2, lines.Count);   // 4 % y 14 %→10 %; 50 %; el 53 % repite el 50 % y el 100 % lo anota el «Copia completa»
+        Assert.Contains("10 %", lines[0]);
+        Assert.Contains("50 %", lines[1]);
+    }
+
+    [Fact]
     public async Task Log_backups_are_uploaded_with_the_trn_extension()
     {
         var (runner, remote, _) = Build();

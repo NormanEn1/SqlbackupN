@@ -71,7 +71,7 @@ deben llevar `ToolTip`.
 - Ventana «Registro de ejecución» (`Views/RunLogWindow`, no modal, `Owner` = ventana principal): encabezado con el título y una insignia
   `StatusChip` con el estado («En curso…», «Terminó con advertencias»…); cuerpo en una `Card` con líneas `hora · [base] texto` en la tipografía
   `MonoFont` (`RunLogLine`: gris normal, ámbar `WarningBrush` para advertencias, rojo `DangerBrush` para errores; la clave es `Kind`); pie con
-  «Copiar» y «Cerrar». El *code-behind* solo lleva la vista a la última línea y copia el texto. Se abre una ventana por ejecución.
+  «Copiar» y «Cerrar». El *code-behind* solo lleva la vista a la última línea y copia el texto. Se abre una ventana por ejecución. Mientras corre, la insignia muestra el tiempo transcurrido («En curso… 00:45»), la subida a Google Drive anota su avance cada 10 %, y cada 3 s la ventana consulta el historial: si la ejecución ya terminó y la ventana no se enteró, se pone al día sola.
 - `Controls/OptionCheck` — opción con casilla: título corto en negrita y, debajo, una explicación en gris que se ajusta al ancho.
   Uso: `<ctl:OptionCheck Label="Comprimir el backup" Hint="…" IsChecked="{Binding Compression}"/>`. Se usa para todas las opciones de las pestañas
   del editor (el texto largo nunca se corta: `CheckBox` y `RadioButton` ajustan el texto al ancho). Las opciones excluyentes (`RadioButton`)

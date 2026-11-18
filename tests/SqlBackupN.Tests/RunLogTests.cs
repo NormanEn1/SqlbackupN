@@ -231,6 +231,48 @@ public class RunLogTests
     }
 
     [Fact]
+    public void While_running_the_log_shows_the_elapsed_time()
+    {
+        var log = new RunLogViewModel("Registro", isRunning: true);
+
+        log.Tick();
+
+        Assert.Matches(@"^En curso… \d\d:\d\d$", log.Subtitle);
+    }
+
+    [Fact]
+    public async Task A_log_still_running_catches_up_when_its_run_is_already_in_the_history()
+    {
+        var record = new JobRunRecord
+        {
+            Status = RunStatus.Succeeded,
+            Log =
+            [
+                new RunLogEntry { TimeUtc = DateTime.UtcNow, Level = RunLogLevel.Info, Message = "Copia completa" },
+                new RunLogEntry { TimeUtc = DateTime.UtcNow, Level = RunLogLevel.Info, Message = "Terminado: correcto" }
+            ]
+        };
+        var log = new RunLogViewModel("Registro", isRunning: true) { Probe = () => Task.FromResult<JobRunRecord?>(record) };
+        log.Add(new RunLogEntry { TimeUtc = DateTime.UtcNow, Level = RunLogLevel.Info, Message = "Copiando a Drive" });
+
+        Assert.True(await log.CheckCompletionAsync());
+
+        Assert.False(log.IsRunning);
+        Assert.Equal("Terminó correctamente", log.Subtitle);
+        Assert.Equal(2, log.Lines.Count);
+        Assert.Contains("Terminado: correcto", log.AsText);
+    }
+
+    [Fact]
+    public async Task A_log_keeps_waiting_while_its_run_is_not_in_the_history_yet()
+    {
+        var log = new RunLogViewModel("Registro", isRunning: true) { Probe = () => Task.FromResult<JobRunRecord?>(null) };
+
+        Assert.False(await log.CheckCompletionAsync());
+        Assert.True(log.IsRunning);
+    }
+
+    [Fact]
     public void Clicking_a_history_entry_opens_its_log_in_its_own_window()
     {
         var (main, dialogs) = CreateMain(MainJob());

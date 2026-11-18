@@ -27,7 +27,7 @@ public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClient
 
     /// <inheritdoc />
     public async Task UploadAsync(
-        DestinationConfig destination, string localFilePath, string relativePath, CancellationToken ct)
+        DestinationConfig destination, string localFilePath, string relativePath, CancellationToken ct, IProgress<long>? progress = null)
     {
         try
         {
@@ -46,10 +46,11 @@ public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClient
                 new DriveFile { Name = fileName, Parents = [parentId] }, stream, "application/octet-stream");
             request.Fields = "id,size,md5Checksum";
             request.ChunkSize = ChunkSize;
+            if (progress is not null) request.ProgressChanged += p => progress.Report(p.BytesSent);
 
-            var progress = await request.UploadAsync(ct);
-            if (progress.Status != UploadStatus.Completed)
-                throw progress.Exception ?? new IOException("La subida a Google Drive no se completó.");
+            var outcome = await request.UploadAsync(ct);
+            if (outcome.Status != UploadStatus.Completed)
+                throw outcome.Exception ?? new IOException("La subida a Google Drive no se completó.");
 
             var uploaded = request.ResponseBody
                            ?? throw new IOException("Google Drive no confirmó el archivo subido.");

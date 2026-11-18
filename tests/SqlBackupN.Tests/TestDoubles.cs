@@ -34,12 +34,16 @@ internal sealed class StubRemote : IRemoteStorage
     public List<RemoteFile> ExistingFiles { get; } = [];
     public List<string> ListedDirectories { get; } = [];
     public Exception? UploadFailure { get; set; }
+    /// <summary>Bytes que la subida simulada informa como enviados, en orden.</summary>
+    public List<long> ProgressBytes { get; } = [];
     public Exception? TestFailure { get; set; }
     public List<DestinationConfig> Tested { get; } = [];
 
-    public Task UploadAsync(DestinationConfig destination, string localFilePath, string relativePath, CancellationToken ct)
+    public Task UploadAsync(
+        DestinationConfig destination, string localFilePath, string relativePath, CancellationToken ct, IProgress<long>? progress = null)
     {
         if (UploadFailure is not null) return Task.FromException(UploadFailure);
+        foreach (var bytes in ProgressBytes) progress?.Report(bytes);
         Uploads.Add((destination.Name, localFilePath, relativePath));
         return Task.CompletedTask;
     }
