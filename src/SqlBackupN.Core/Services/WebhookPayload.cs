@@ -61,6 +61,12 @@ public static partial class WebhookPayload
                 finishedUtc = record.FinishedUtc,
                 durationSeconds = double.Parse(values["duration"], CultureInfo.InvariantCulture),
                 message,
+                destinations = job.Destinations.Select(d => new
+                {
+                    kind = KindName(d.Kind),
+                    name = d.Name,
+                    accountEmail = d.Drive?.AccountEmail
+                }),
                 databases = record.Results.Select(r => new
                 {
                     name = r.Database,
@@ -141,6 +147,9 @@ public static partial class WebhookPayload
             values.TryGetValue(m.Groups[1].Value, out var v)
                 ? JsonEncodedText.Encode(v, JavaScriptEncoder.UnsafeRelaxedJsonEscaping).ToString()
                 : m.Value);
+
+    /// <summary>Nombre del tipo de destino en el JSON del aviso: <c>folder</c> o <c>gdrive</c>.</summary>
+    private static string KindName(DestinationKind kind) => kind == DestinationKind.GoogleDrive ? "gdrive" : "folder";
 
     private static string TextBody(string message) => JsonSerializer.Serialize(new { text = message }, Json);
 

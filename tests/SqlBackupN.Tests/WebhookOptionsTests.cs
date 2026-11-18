@@ -60,6 +60,26 @@ public class WebhookOptionsTests
     }
 
     [Fact]
+    public void The_full_json_format_lists_the_destinations_with_kind_name_and_drive_account()
+    {
+        var job = Job(n => n.WebhookFormat = WebhookFormat.Json);
+        job.Destinations.Add(new DestinationConfig
+        {
+            Name = "Carpeta backups", Kind = DestinationKind.GoogleDrive, Drive = new DriveSettings { AccountEmail = "backup@empresa.com" }
+        });
+
+        using var doc = JsonDocument.Parse(WebhookPayload.ForRun(job, Record(), "SRV"));
+        var destinations = doc.RootElement.GetProperty("destinations").EnumerateArray().ToList();
+
+        Assert.Equal(2, destinations.Count);
+        Assert.Equal("folder", destinations[0].GetProperty("kind").GetString());
+        Assert.Equal("Local", destinations[0].GetProperty("name").GetString());
+        Assert.Equal(JsonValueKind.Null, destinations[0].GetProperty("accountEmail").ValueKind);
+        Assert.Equal("gdrive", destinations[1].GetProperty("kind").GetString());
+        Assert.Equal("backup@empresa.com", destinations[1].GetProperty("accountEmail").GetString());
+    }
+
+    [Fact]
     public void The_full_json_format_carries_the_job_the_status_and_every_database()
     {
         var job = Job(n => n.WebhookFormat = WebhookFormat.Json);
