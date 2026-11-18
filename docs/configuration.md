@@ -26,7 +26,7 @@ esa carpeta. La cuenta del servicio solo necesita lectura de `jobs.json` y escri
 | `retention` | `keepDays` y/o `keepLast` |
 | `notifications` | `webhookUrl`, `webhookFormat`, `webhookBodyTemplate`, `webhookAuth`, `webhookAuthHeader`, `protectedWebhookSecret`, `webhookHeaders`, `webhookRetries`, `webhookTimeoutSeconds`, `onSuccess`, `onWarning`, `onFailure`, `missedRunHours` |
 
-**Bitácora y seguimiento.** Para llevar un registro completo de los backups (riesgo operativo), el webhook debe recibir **todas** las ejecuciones, no solo los problemas: use el formato `Json` y deje activo `onSuccess` (activo por defecto en los jobs nuevos). Cada aviso trae el job, el estado, las horas, los destinos y el resultado de cada base. Los pasos *omitidos* (un diferencial que cubre un completo) no generan aviso. Además, cada ejecución queda siempre en el historial local (`history.jsonl`).
+**Bitácora y seguimiento.** Para llevar un registro completo de los backups (riesgo operativo), el webhook debe recibir **todas** las ejecuciones, no solo los problemas: use el formato `Json` y deje activo `onSuccess` (activo por defecto en los jobs nuevos). Cada aviso trae el job, el estado, las horas, los destinos y el resultado de cada base. Los pasos *omitidos* (un diferencial que cubre un completo) también se avisan, con `status` = `skipped`, cuando `onSuccess` está activo. Además, cada ejecución queda siempre en el historial local (`history.jsonl`).
 
 ## Programación
 

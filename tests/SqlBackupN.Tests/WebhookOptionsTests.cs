@@ -60,6 +60,16 @@ public class WebhookOptionsTests
     }
 
     [Fact]
+    public void A_skipped_step_is_reported_together_with_the_successful_runs()
+    {
+        var on = new NotificationSettings { WebhookUrl = "https://x.test/h", OnSuccess = true };
+        var off = new NotificationSettings { WebhookUrl = "https://x.test/h", OnSuccess = false };
+
+        Assert.True(on.ShouldNotify(RunStatus.Skipped));
+        Assert.False(off.ShouldNotify(RunStatus.Skipped));
+    }
+
+    [Fact]
     public void The_full_json_format_lists_the_destinations_with_kind_name_and_drive_account()
     {
         var job = Job(n => n.WebhookFormat = WebhookFormat.Json);

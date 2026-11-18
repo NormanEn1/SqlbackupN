@@ -257,7 +257,8 @@ public sealed class NotificationSettings
     public bool ShouldNotify(RunStatus status) =>
         !string.IsNullOrWhiteSpace(WebhookUrl) && status switch
         {
-            RunStatus.Succeeded => OnSuccess,
+            // Un paso omitido (lo cubre un completo) es informativo: va con las ejecuciones correctas, para que la bitácora esté completa.
+            RunStatus.Succeeded or RunStatus.Skipped => OnSuccess,
             RunStatus.Warning => OnWarning,
             RunStatus.Failed => OnFailure,
             _ => false
