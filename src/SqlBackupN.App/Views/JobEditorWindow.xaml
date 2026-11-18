@@ -747,7 +747,7 @@
                                          IsChecked="{Binding OnFailure}"/>
                         <ctl:OptionCheck Label="Hay advertencias" Hint="Por ejemplo, falló la copia a un destino secundario."
                                          IsChecked="{Binding OnWarning}"/>
-                        <ctl:OptionCheck Label="Todo sale bien" Hint="Un aviso por cada ejecución correcta; puede ser mucho si hay pasos frecuentes."
+                        <ctl:OptionCheck Label="Todo sale bien" Hint="Un aviso por cada ejecución correcta. Déjelo activo si el webhook alimenta una bitácora o seguimiento; con pasos muy frecuentes puede ser mucho."
                                          IsChecked="{Binding OnSuccess}"/>
                         <ctl:OptionCheck Label="El job no se ejecuta a tiempo"
                                          Hint="Avisa si pasan demasiadas horas sin ninguna ejecución. Lo detecta el servicio de Windows mientras está en marcha: no sirve si el propio servicio o el servidor están apagados."

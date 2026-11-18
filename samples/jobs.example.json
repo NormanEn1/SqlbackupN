@@ -33,7 +33,7 @@
     "retention": { "keepDays": 30, "keepLast": 3 },
     "notifications": {
       "webhookUrl": "",
-      "onSuccess": false,
+      "onSuccess": true,
       "onWarning": true,
       "onFailure": true
     }

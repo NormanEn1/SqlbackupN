@@ -235,8 +235,11 @@ public sealed class NotificationSettings
     /// <summary>Segundos máximos de espera por cada intento (5–120).</summary>
     public int WebhookTimeoutSeconds { get; set; } = 15;
 
-    /// <summary>Avisar cuando todo sale bien.</summary>
-    public bool OnSuccess { get; set; }
+    /// <summary>
+    /// Avisar cuando todo sale bien. Activo por defecto: si el webhook alimenta una bitácora o un seguimiento (riesgo operativo),
+    /// necesita recibir también las ejecuciones correctas, no solo los problemas.
+    /// </summary>
+    public bool OnSuccess { get; set; } = true;
 
     /// <summary>Avisar cuando hay advertencias.</summary>
     public bool OnWarning { get; set; } = true;
