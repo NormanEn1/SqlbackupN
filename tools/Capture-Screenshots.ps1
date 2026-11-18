@@ -317,3 +317,6 @@ Invoke-Scenario "09" @($jobNubeSin) (New-EditorAction "Editar" "^Editar job" @(
 
 # Los enlaces de los .md llevan la huella de cada imagen para que no se muestre una versión antigua en caché.
 Update-ImageLinks
+
+Invoke-Scenario "10" @($jobConta, $jobVentas) (New-EditorAction "Editar" "^Editar job" @(
+    @{ tab = "Bases de datos"; name = "16-editor-bases-de-datos" }))
