@@ -98,4 +98,4 @@ deben llevar `ToolTip`.
 6. Tras un cambio visual, regenerar las capturas con `tools/Capture-Screenshots.ps1` y revisarlas.
    El script añade a los enlaces del README y de `docs/*.md` un sufijo `?v=<huella>` (8 primeros caracteres del
    SHA-256 de cada imagen): al cambiar la imagen cambia su dirección y GitHub/navegadores no muestran la versión
-   anterior en caché. Para recalcular solo los enlaces: `tools\Capture-Screenshots.ps1 -LinksOnly`.
+   anterior en caché. Para recalcular solo los enlaces: `tools\Capture-Screenshots.ps1 -LinksOnly`. Las capturas salen en modo claro; con `-Theme Dark` o `-Theme System` se cambia el tema sin tocar las preferencias del usuario.

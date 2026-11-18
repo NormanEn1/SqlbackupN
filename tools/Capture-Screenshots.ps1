@@ -17,6 +17,10 @@
   dirección cambia y navegadores y CDN no muestran la versión anterior guardada en caché. Se ejecuta solo al
   terminar una captura normal.
 
+.PARAMETER Theme
+  Apariencia de las capturas: Light (por defecto), Dark o System (sigue a Windows). Se aplica con una carpeta de
+  preferencias temporal (SQLBACKUPN_USER), sin tocar las del usuario.
+
 .PARAMETER Exe
   Ruta de SqlBackupN.exe. Por defecto, la compilación Debug de la carpeta del repositorio.
 
@@ -28,6 +32,7 @@ param(
     [string]$Repo = (Split-Path -Parent $PSScriptRoot),
     [string]$Exe = "",
     [string[]]$Only = @(),   # solo estos escenarios, p. ej. -Only 05,08 (por defecto, todos)
+    [ValidateSet("Light", "Dark", "System")][string]$Theme = "Light",
     [switch]$LinksOnly   # no captura nada: solo actualiza los enlaces de los .md con la huella de cada imagen
 )
 
@@ -248,6 +253,10 @@ function Invoke-Scenario($file, $jobs, $action, [switch]$GoogleClient) {
     }
 
     $env:SQLBACKUPN_DATA = $dir
+    $userDir = Join-Path $dir "user"
+    New-Item -ItemType Directory -Path $userDir -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $userDir "settings.json"), (ConvertTo-Json -InputObject ([ordered]@{ theme = $Theme })), $utf8)
+    $env:SQLBACKUPN_USER = $userDir
     $proc = Start-Process $Exe -PassThru
     try {
         $deadline = (Get-Date).AddSeconds(25)

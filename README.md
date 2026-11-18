@@ -22,39 +22,39 @@ Las imágenes usan **datos ficticios de demostración**. Se regeneran con
 
 **Panel principal** — lista de jobs con su último estado, configuración en tarjetas, historial (se puede borrar una ejecución, todo el historial de un job o el de todos) y, al ejecutar, el registro paso a paso. El botón «Tema» de la barra lateral cambia entre modo automático, claro y oscuro:
 
-![Panel principal](docs/screenshots/01-panel-principal.png?v=b58ecec2)
+![Panel principal](docs/screenshots/01-panel-principal.png?v=37e50a22)
 
 **Bienvenida** — sin jobs, la aplicación guía hacia el primero:
 
-![Bienvenida](docs/screenshots/04-bienvenida.png?v=a8d1a602)
+![Bienvenida](docs/screenshots/04-bienvenida.png?v=7e20727d)
 
 **Job con advertencia** (falló la copia a un destino secundario) y **job con fallo** (el motivo se ve en el historial):
 
-![Job con advertencia](docs/screenshots/02-job-con-advertencia.png?v=6d24fa7e)
-![Job con fallo](docs/screenshots/03-job-con-fallo.png?v=7a9c7be5)
+![Job con advertencia](docs/screenshots/02-job-con-advertencia.png?v=62e9711d)
+![Job con fallo](docs/screenshots/03-job-con-fallo.png?v=bd3b5099)
 
 ### Editor de jobs
 
 Todas las opciones del job se administran desde el editor, organizadas por pestañas:
 
-![Editor: general y servidor](docs/screenshots/05-editor-general.png?v=44d982a5)
-![Editor: programación](docs/screenshots/06-editor-programacion.png?v=903d0432)
-![Editor: destinos](docs/screenshots/07-editor-destinos.png?v=24b1dd09)
+![Editor: general y servidor](docs/screenshots/05-editor-general.png?v=b2002dcf)
+![Editor: programación](docs/screenshots/06-editor-programacion.png?v=f4fafe7c)
+![Editor: destinos](docs/screenshots/07-editor-destinos.png?v=a0209321)
 ![Editor: bases de datos](docs/screenshots/16-editor-bases-de-datos.png?v=b95765cc)
-![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png?v=9f082346)
-![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png?v=6e3845da)
+![Editor: opciones de backup](docs/screenshots/08-editor-opciones.png?v=1d2fbb88)
+![Editor: retención y avisos](docs/screenshots/09-editor-retencion-avisos.png?v=f0221aaf)
 
 **Validación en vivo** — cada dato se comprueba mientras se escribe. Lo que *falta* por rellenar se muestra en tono neutro («Faltan 2 datos para poder guardar») y solo lo *incorrecto* sale en rojo; el resumen indica en qué pestaña está cada cosa (también al abrir un `jobs.json` escrito a mano):
 
-![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png?v=68cc29d2)
-![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png?v=0c3c83b9)
-![Nuevo job](docs/screenshots/12-editor-nuevo-job.png?v=5ef0e4e6)
+![Validación: programación](docs/screenshots/10-editor-validacion-programacion.png?v=db67dd19)
+![Validación: destinos](docs/screenshots/11-editor-validacion-destinos.png?v=5637426a)
+![Nuevo job](docs/screenshots/12-editor-nuevo-job.png?v=28f99611)
 
 **Destino Google Drive** — credenciales de su proyecto de Google Cloud, conexión de la cuenta con un clic (autorización una sola vez en el navegador) y carpeta de destino; el servicio sube después una copia por HTTPS:
 
-![Google Drive conectado](docs/screenshots/13-editor-google-drive.png?v=d6b91629)
-![Credenciales de Google, pasos guiados](docs/screenshots/15-editor-google-credenciales.png?v=bf8bac81)
-![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png?v=e05ebd37)
+![Google Drive conectado](docs/screenshots/13-editor-google-drive.png?v=fdfc3382)
+![Credenciales de Google, pasos guiados](docs/screenshots/15-editor-google-credenciales.png?v=3d6914b4)
+![Google Drive sin conectar](docs/screenshots/14-editor-google-drive-sin-conectar.png?v=47c0e21a)
 
 ## Componentes
 
@@ -107,8 +107,11 @@ dotnet test SqlBackupN.sln
    La cuenta del servicio necesita el rol `db_backupoperator` (o `sysadmin`) en SQL Server y permiso de
    escritura en los destinos.
 
+   El diagrama de cómo se coordinan el cliente y el servicio, y la instalación completa en `C:\SqlBackupN` con su carpeta de datos, están en [Instalación y funcionamiento](docs/deployment.md).
+
 ## Documentación
 
+- [Instalación y funcionamiento del cliente y el servicio](docs/deployment.md)
 - [Arquitectura](docs/architecture.md)
 - [Reglas de desarrollo](docs/rules.md)
 - [Configuración de jobs](docs/configuration.md)
