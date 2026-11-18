@@ -52,7 +52,7 @@ antes de saltársela.
 
 ## 5. Git
 
-1. Rama principal `main` siempre compilable. Trabajo en ramas `feature/…`, `fix/…`, `docs/…`.
+1. Una sola versión: solo existe la rama `main`, siempre compilable. No se crean ramas; los cambios se confirman directamente en `main`, en orden.
 2. Commits pequeños, en imperativo y descriptivos (`Agrega retención por cantidad`).
 3. *Pull requests* con descripción, pruebas y, si cambia comportamiento, actualización de documentación y `CHANGELOG.md`.
 4. Nunca se suben datos reales: `jobs.json`, historial, cadenas de conexión ni backups (ver `.gitignore`).
