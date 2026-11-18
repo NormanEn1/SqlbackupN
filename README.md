@@ -15,6 +15,36 @@ Software libre (MIT) de **Centinela Appliance**.
 - **Interfaz gráfica de administración**: crear, editar, duplicar y eliminar jobs sin tocar archivos, con **validación en vivo** de cada dato (errores junto al campo, resumen por pestaña y advertencias de buenas prácticas), pruebas de **conexión** y de **escritura en destinos**, y vista previa de las próximas ejecuciones.
 - **Línea de comandos** pensada para scripts, con salida JSON y códigos de salida definidos.
 
+## Cómo funciona
+
+La interfaz y la línea de comandos (el **cliente**) y el **servicio** de Windows no se comunican entre sí: se coordinan por una
+carpeta de datos compartida. El cliente guarda los jobs; el servicio los lee cada 30 s, ejecuta la programación y anota el historial.
+
+```mermaid
+flowchart LR
+    subgraph PC["Equipo Windows"]
+        direction LR
+        GUI["Cliente: SqlBackupN.exe<br/>(interfaz)"]
+        CLI["Cliente: sqlbackupn.exe<br/>(línea de comandos)"]
+        SVC["Servicio: SqlBackupN.Service.exe<br/>(revisa cada 30 s)"]
+        DATA[("Carpeta de datos<br/>jobs.json · history.jsonl")]
+        GUI -- "escribe jobs · lee historial" --> DATA
+        CLI -- "lee jobs · ejecuta · anota historial" --> DATA
+        SVC -- "lee jobs · anota historial" --> DATA
+    end
+    SQL[("SQL Server")]
+    DEST["Destinos: carpeta principal,<br/>carpetas de red y Google Drive"]
+    HOOK["Aviso por webhook"]
+    GUI -. "Ejecutar ahora" .-> SQL
+    CLI --> SQL
+    SVC --> SQL
+    SQL -- "escribe el .bak" --> DEST
+    SVC -- "copia, retención" --> DEST
+    SVC -- "resultado" --> HOOK
+```
+
+Cómo instalarlo, por ejemplo en `C:\SqlBackupN` con su carpeta de datos: [Instalación y funcionamiento](docs/deployment.md).
+
 ## Capturas
 
 Las imágenes usan **datos ficticios de demostración**. Se regeneran con
