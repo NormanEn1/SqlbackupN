@@ -5,13 +5,22 @@ La validación vive en un solo lugar, `SqlBackupN.Core/Services/JobValidator.cs`
 - el **editor de jobs** (valida en vivo mientras se escribe y bloquea *Guardar* si hay errores),
 - cualquier herramienta que quiera revisar un `jobs.json` escrito a mano.
 
-Cada problema tiene una **gravedad**:
+Cada problema tiene una **gravedad**, y la interfaz las distingue para no alarmar sin motivo:
 
-- **Error** ✖ — el job no funcionaría o sería peligroso. Impide guardar.
-- **Advertencia** ⚠ — se puede guardar, pero es una mala práctica.
+- **Pendiente** ○ — *falta un dato obligatorio que todavía no se ha rellenado* (nombre, destino, cuenta conectada…).
+  No es una equivocación: se muestra en **tono neutro** («Falta agregar al menos un destino») y no en rojo. Impide guardar.
+- **Error** ✖ — *un dato escrito es incorrecto* (cron inválido, ruta relativa, URL mal escrita, nombre repetido…).
+  Se muestra **en rojo** junto al campo. Impide guardar.
+- **Advertencia** ⚠ — se puede guardar, pero es una mala práctica (sin retención, un solo destino…).
+
+Un job nuevo, recién abierto, solo tiene datos **pendientes**: nada aparece en rojo hasta que se escribe algo incorrecto.
+El resumen lo redacta como algo por completar («Faltan 2 datos para poder guardar») y el botón *Guardar* desactivado
+explica en su ayuda qué falta.
 
 Cada problema se asocia a un **campo** (`Name`, `Connection.Server`, `Steps[0].Cron`,
 `Destinations[1].Path`…) para mostrarlo junto al control correspondiente y en el resumen del editor.
+
+> En las tablas siguientes, **vacío** significa *Pendiente* (falta el dato) y cualquier otra regla incumplida es un *Error*, salvo que se indique *Advertencia*.
 
 ## General
 
@@ -68,7 +77,9 @@ Además, el editor impide guardar un paso por días (semanal, cada pocas horas o
 |---|---|
 | Tiempo máximo entre 0 y 86400 s | Error |
 | Plantilla obligatoria, sin caracteres no permitidos ni tokens desconocidos, ruta relativa sin `..` | Error |
-| La plantilla debe incluir `{Database}` y `{Timestamp}` (si no, los backups se pisarían) | Error |
+| La plantilla debe incluir `{Timestamp}` (o `{Date}`: un archivo por día) y, si el job puede respaldar varias bases, `{Database}`; solo se puede omitir con una única base explícita | Error |
+| Con la opción de carpeta principal temporal debe haber al menos otro destino (si no, se borraría el único ejemplar) | Error |
+| Con `{Date}` sin `{Timestamp}`, una segunda ejecución el mismo día reemplaza al archivo anterior | Advertencia |
 | Se recomienda `{Type}` (la retención se aplica por carpeta) | Advertencia |
 
 ## Retención y avisos
@@ -78,7 +89,13 @@ Además, el editor impide guardar un paso por días (semanal, cada pocas horas o
 | Días entre 1 y 3650; mínimo de archivos entre 1 y 1000; deben ser números enteros | Error |
 | Sin retención (no se borra nada) | Advertencia |
 | Webhook con URL completa `http(s)://…` | Error |
-| Webhook `http` sin cifrado / sin webhook / webhook sin ningún evento activado | Advertencia |
+| Webhook `http` sin cifrado / sin webhook / webhook sin ningún evento activado / avisos de fallo desactivados | Advertencia |
+| Horas sin ejecutarse entre 1 y 8760 (`missedRunHours`) | Error |
+| Formato personalizado: plantilla escrita (Pendiente), con solo valores conocidos y que produzca un JSON válido (Error) | Pendiente / Error |
+| Autenticación distinta de «Ninguna»: token escrito (Pendiente); con cabecera propia, un nombre válido (Error) | Pendiente / Error |
+| Cabeceras adicionales: hasta 10, con el formato `Nombre: valor`, sin las reservadas (Error); `Authorization` aquí avisa de que queda sin cifrar | Error / Advertencia |
+| Reintentos entre 0 y 5; tiempo de espera entre 5 y 120 s | Error |
+| Aviso por falta de ejecución sin webhook (no se podría enviar) | Advertencia |
 
 ## Probar sin guardar
 

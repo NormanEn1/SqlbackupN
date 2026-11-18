@@ -11,6 +11,12 @@ public interface IDialogService
     /// <summary>Muestra el editor de jobs de forma modal. Devuelve <c>true</c> si el usuario guardó.</summary>
     bool ShowJobEditor(JobEditorViewModel editor);
 
+    /// <summary>
+    /// Abre el registro de ejecución en una ventana aparte, sin bloquear la principal (se puede dejar abierta
+    /// mientras corre el backup y se puede abrir más de una).
+    /// </summary>
+    void ShowRunLog(RunLogViewModel log);
+
     /// <summary>Pide confirmación (Sí/No).</summary>
     bool Confirm(string title, string message);
 

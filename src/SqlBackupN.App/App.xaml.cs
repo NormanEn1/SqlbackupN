@@ -20,6 +20,8 @@ public partial class App : Application
             .AddLogging()
             .AddSqlBackupNCore()
             .AddSingleton<IDialogService, WpfDialogService>()
+            .AddSingleton<IThemeService, WpfThemeService>()
+            .AddSingleton<ThemeController>()
             .AddSingleton<MainViewModel>()
             .BuildServiceProvider();
 

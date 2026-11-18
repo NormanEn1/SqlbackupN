@@ -1,0 +1,16 @@
+<UserControl x:Class="SqlBackupN.App.Controls.OptionCheck"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False" Margin="0,12,0,0">
+    <!-- Opción con casilla: título corto y, debajo, una explicación en gris que se ajusta al ancho (nunca se corta). -->
+    <CheckBox Margin="0" IsChecked="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+              AutomationProperties.Name="{Binding Label, RelativeSource={RelativeSource AncestorType=UserControl}}">
+        <StackPanel>
+            <!-- Se usan TextBlock (no texto como Content): WPF trataría "_" como tecla de acceso y lo ocultaría. -->
+            <TextBlock Text="{Binding Label, RelativeSource={RelativeSource AncestorType=UserControl}}" FontWeight="SemiBold"/>
+            <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
+                       Text="{Binding Hint, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       Visibility="{Binding Hint, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource NotEmptyToVisibility}}"/>
+        </StackPanel>
+    </CheckBox>
+</UserControl>

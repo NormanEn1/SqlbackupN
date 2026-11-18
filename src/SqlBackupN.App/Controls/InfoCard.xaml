@@ -5,16 +5,16 @@
     <Border Style="{StaticResource Card}">
         <StackPanel>
             <StackPanel Orientation="Horizontal">
-                <Border Width="32" Height="32" CornerRadius="9" Background="{StaticResource PrimaryTintBrush}">
+                <Border Width="32" Height="32" CornerRadius="9" Background="{DynamicResource PrimaryTintBrush}">
                     <TextBlock Text="{Binding Icon, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                Style="{StaticResource IconText}" FontSize="15"
-                               Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center"/>
+                               Foreground="{DynamicResource PrimaryBrush}" HorizontalAlignment="Center"/>
                 </Border>
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=UserControl}}"
                            Style="{StaticResource SectionTitle}" Margin="12,0,0,0" VerticalAlignment="Center"/>
             </StackPanel>
             <TextBlock Text="{Binding Text, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                       Style="{StaticResource Muted}" Foreground="{StaticResource BodyTextBrush}" LineHeight="20" Margin="0,12,0,0"/>
+                       Style="{StaticResource Muted}" Foreground="{DynamicResource BodyTextBrush}" LineHeight="20" Margin="0,12,0,0"/>
         </StackPanel>
     </Border>
 </UserControl>

@@ -109,6 +109,7 @@ internal sealed class StubFiles : IFileStore
         Verified.Add(directory);
     }
 
+    public void CreateZip(string sourceFile, string zipPath) { }
     public void EnsureDirectory(string path) { }
     public void Copy(string source, string destination) { }
     public void Delete(string path) { }
@@ -125,6 +126,7 @@ internal sealed class StubDialogs : IDialogService
     public List<string> OpenedUrls { get; } = [];
     public List<string> Messages { get; } = [];
     public int EditorsShown { get; private set; }
+    public List<RunLogViewModel> RunLogs { get; } = [];
 
     public bool ShowJobEditor(JobEditorViewModel editor)
     {
@@ -133,6 +135,7 @@ internal sealed class StubDialogs : IDialogService
         return editor.Result is not null;
     }
 
+    public void ShowRunLog(RunLogViewModel log) => RunLogs.Add(log);
     public bool Confirm(string title, string message) => ConfirmAnswer;
     public void ShowMessage(string title, string message) => Messages.Add(message);
     public void OpenUrl(string url) => OpenedUrls.Add(url);
@@ -160,11 +163,31 @@ internal sealed class MemoryHistoryStore : IHistoryStore
     public Task<IReadOnlyList<JobRunRecord>> GetRecentAsync(Guid? jobId, int max, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<JobRunRecord>>([]);
 
+    public Task<int> DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) => Task.FromResult(0);
+
+    public Task<int> ClearAsync(Guid? jobId, CancellationToken ct = default) => Task.FromResult(0);
+
     public Task<DateTime?> GetLastRunUtcAsync(Guid jobId, Guid stepId, CancellationToken ct = default) =>
         Task.FromResult<DateTime?>(null);
 }
 
 internal sealed class StubNotifier : INotifier
 {
-    public Task NotifyAsync(BackupJob job, JobRunRecord record, CancellationToken ct) => Task.CompletedTask;
+    public List<string> Messages { get; } = [];
+    public List<NoticeKind> Kinds { get; } = [];
+    public List<NotificationSettings> SentWith { get; } = [];
+    public Exception? SendFailure { get; set; }
+    public Exception? NotifyFailure { get; set; }
+
+    public Task NotifyAsync(BackupJob job, JobRunRecord record, CancellationToken ct) =>
+        NotifyFailure is null ? Task.CompletedTask : Task.FromException(NotifyFailure);
+
+    public Task SendMessageAsync(NotificationSettings settings, NoticeKind kind, string message, CancellationToken ct)
+    {
+        if (SendFailure is not null) return Task.FromException(SendFailure);
+        Messages.Add(message);
+        Kinds.Add(kind);
+        SentWith.Add(settings);
+        return Task.CompletedTask;
+    }
 }

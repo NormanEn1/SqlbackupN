@@ -3,22 +3,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Focusable="False" Width="84" Height="36">
     <!-- Selector numérico: escribir, flechas del teclado, rueda del ratón o los botones ▲▼. -->
-    <Border x:Name="Root" Background="{StaticResource SurfaceBrush}" CornerRadius="6" BorderThickness="1">
+    <Border x:Name="Root" Background="{DynamicResource SurfaceBrush}" CornerRadius="6" BorderThickness="1">
         <Border.Style>
             <Style TargetType="Border">
-                <Setter Property="BorderBrush" Value="{StaticResource BorderBrushStrong}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushStrong}"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
-                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
-                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushHover}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushHover}"/>
                     </DataTrigger>
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"/>
                         </MultiDataTrigger.Conditions>
-                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
                     </MultiDataTrigger>
                 </Style.Triggers>
             </Style>

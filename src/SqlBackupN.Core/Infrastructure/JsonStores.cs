@@ -24,6 +24,46 @@ public static class AppPaths
 
     /// <summary>Archivo de historial (un registro JSON por línea).</summary>
     public static string HistoryFile => Path.Combine(DataDirectory, "history.jsonl");
+
+    /// <summary>
+    /// Carpeta de las preferencias de la persona que usa la interfaz (<c>%LocalAppData%\Centinela\SqlBackupN</c>); a diferencia
+    /// de <see cref="DataDirectory"/> no se comparte con el servicio. Se puede cambiar con <c>SQLBACKUPN_USER</c>.
+    /// </summary>
+    public static string UserDirectory { get; } =
+        Environment.GetEnvironmentVariable("SQLBACKUPN_USER") is { Length: > 0 } custom
+            ? custom
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Centinela", "SqlBackupN");
+
+    /// <summary>Archivo de preferencias del usuario.</summary>
+    public static string UserSettingsFile => Path.Combine(UserDirectory, "settings.json");
+}
+
+/// <summary>Preferencias del usuario en un archivo JSON dentro de <see cref="AppPaths.UserDirectory"/>.</summary>
+public sealed class JsonUserSettingsStore(string? path = null) : IUserSettingsStore
+{
+    private readonly string _path = path ?? AppPaths.UserSettingsFile;
+
+    /// <inheritdoc />
+    public UserSettings Load()
+    {
+        try
+        {
+            return File.Exists(_path)
+                ? JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(_path), JsonDefaults.Indented) ?? new UserSettings()
+                : new UserSettings();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return new UserSettings();   // un archivo dañado no debe impedir abrir la aplicación
+        }
+    }
+
+    /// <inheritdoc />
+    public void Save(UserSettings settings)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        File.WriteAllText(_path, JsonSerializer.Serialize(settings, JsonDefaults.Indented));
+    }
 }
 
 /// <summary>Opciones JSON compartidas: legibles, con enums como texto.</summary>
@@ -88,7 +128,96 @@ public sealed class JsonHistoryStore(string? path = null) : IHistoryStore
         await _gate.WaitAsync(ct);
         try
         {
-            await File.AppendAllTextAsync(_path, line, ct);
+            // Mientras otro proceso (la interfaz) reescribe el archivo para borrar ejecuciones, abrirlo falla un instante: se reintenta.
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    await File.AppendAllTextAsync(_path, line, ct);
+                    return;
+                }
+                catch (IOException) when (attempt < AppendRetries)
+                {
+                    await Task.Delay(AppendRetryDelay, ct);
+                }
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private const int AppendRetries = 40;
+    private static readonly TimeSpan AppendRetryDelay = TimeSpan.FromMilliseconds(50);
+
+    /// <inheritdoc />
+    public Task<int> DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+        RewriteAsync(r => !ids.Contains(r.Id), ct);
+
+    /// <inheritdoc />
+    public Task<int> ClearAsync(Guid? jobId, CancellationToken ct = default) =>
+        RewriteAsync(r => jobId is not null && r.JobId != jobId, ct);
+
+    /// <summary>Abre el historial con acceso exclusivo de escritura; si otro proceso está agregando una línea, reintenta un momento.</summary>
+    private async Task<FileStream> OpenForRewriteAsync(CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return new FileStream(_path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
+            }
+            catch (IOException) when (attempt < AppendRetries)
+            {
+                await Task.Delay(AppendRetryDelay, ct);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reescribe el archivo dejando solo las ejecuciones que cumplen <paramref name="keep"/>. Se abre con acceso exclusivo de
+    /// escritura: ningún otro proceso puede agregar una línea mientras tanto (el servicio reintenta), así no se pierde ninguna.
+    /// Las líneas ilegibles se conservan tal cual. Devuelve cuántas ejecuciones se borraron.
+    /// </summary>
+    private async Task<int> RewriteAsync(Func<JobRunRecord, bool> keep, CancellationToken ct)
+    {
+        if (!File.Exists(_path)) return 0;
+
+        await _gate.WaitAsync(ct);
+        try
+        {
+            await using var stream = await OpenForRewriteAsync(ct);
+            var kept = new List<string>();
+            var removed = 0;
+            using (var reader = new StreamReader(stream, leaveOpen: true))
+            {
+                while (await reader.ReadLineAsync(ct) is { } line)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    JobRunRecord? record = null;
+                    try { record = JsonSerializer.Deserialize<JobRunRecord>(line, JsonDefaults.Compact); }
+                    catch (JsonException) { /* línea dañada: se conserva */ }
+
+                    if (record is not null && !keep(record)) removed++;
+                    else kept.Add(line);
+                }
+            }
+            if (removed == 0) return 0;
+
+            // Primero una copia completa del resultado al lado; solo después se sobrescribe el archivo (si algo se corta a la mitad, la copia sirve).
+            var temp = _path + ".tmp";
+            var text = string.Concat(kept.Select(l => l + Environment.NewLine));
+            await File.WriteAllTextAsync(temp, text, ct);
+            stream.SetLength(0);
+            stream.Position = 0;
+            await using (var writer = new StreamWriter(stream, new System.Text.UTF8Encoding(false), leaveOpen: true))
+            {
+                await writer.WriteAsync(text);
+                await writer.FlushAsync(ct);
+            }
+            File.Delete(temp);
+            return removed;
         }
         finally
         {

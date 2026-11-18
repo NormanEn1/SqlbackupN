@@ -1,5 +1,6 @@
 using SqlBackupN.Core.Abstractions;
 using SqlBackupN.Core.Domain;
+using SqlBackupN.Core.Services;
 using SqlBackupN.Presentation.Infrastructure;
 
 namespace SqlBackupN.Presentation.Jobs;
@@ -13,6 +14,7 @@ namespace SqlBackupN.Presentation.Jobs;
 /// <param name="GoogleClients">Credenciales de Google compartidas por todos los destinos.</param>
 /// <param name="Dialogs">Selector de carpetas y mensajes.</param>
 /// <param name="Clock">Reloj (para calcular próximas ejecuciones).</param>
+/// <param name="Notifier">Envía el aviso de prueba (opcional).</param>
 public sealed record EditorServices(
     ISecretProtector Protector,
     IBackupExecutor Executor,
@@ -21,7 +23,36 @@ public sealed record EditorServices(
     IGoogleAuthorizer Authorizer,
     IGoogleClientProvider GoogleClients,
     IDialogService Dialogs,
-    TimeProvider Clock);
+    TimeProvider Clock,
+    INotifier? Notifier = null);
+
+/// <summary>Opción de la lista «Formato del mensaje» del webhook.</summary>
+/// <param name="Value">Formato.</param>
+/// <param name="Label">Texto visible.</param>
+public sealed record WebhookFormatOption(WebhookFormat Value, string Label)
+{
+    /// <summary>Todas las opciones, en el orden en que se muestran.</summary>
+    public static IReadOnlyList<WebhookFormatOption> All { get; } =
+    [
+        new(WebhookFormat.Text, "Texto simple (Slack, Teams)"),
+        new(WebhookFormat.Json, "JSON completo (HelpDesk, n8n, Zapier)"),
+        new(WebhookFormat.Custom, "Personalizado (plantilla)")
+    ];
+}
+
+/// <summary>Opción de la lista «Autenticación» del webhook.</summary>
+/// <param name="Value">Modo de autenticación.</param>
+/// <param name="Label">Texto visible.</param>
+public sealed record WebhookAuthOption(WebhookAuth Value, string Label)
+{
+    /// <summary>Todas las opciones, en el orden en que se muestran.</summary>
+    public static IReadOnlyList<WebhookAuthOption> All { get; } =
+    [
+        new(WebhookAuth.None, "Ninguna"),
+        new(WebhookAuth.Bearer, "Token Bearer (cabecera Authorization)"),
+        new(WebhookAuth.Header, "Cabecera propia (p. ej. x-api-key)")
+    ];
+}
 
 /// <summary>Opción de la lista de tipos de backup.</summary>
 /// <param name="Value">Tipo de backup.</param>
@@ -54,17 +85,43 @@ public sealed record KindOption(DestinationKind Value, string Label)
 }
 
 /// <summary>Fila del resumen de problemas de validación.</summary>
-/// <param name="IsError"><c>true</c> para errores, <c>false</c> para advertencias.</param>
+/// <param name="Severity">Error (dato incorrecto), Missing (falta un dato) o Warning (recomendación).</param>
 /// <param name="Area">Pestaña o sección afectada, p. ej. "Programación (paso 2)".</param>
 /// <param name="Message">Texto del problema.</param>
-public sealed record IssueRow(bool IsError, string Area, string Message)
+public sealed record IssueRow(IssueSeverity Severity, string Area, string Message)
 {
-    /// <summary>Símbolo que acompaña al mensaje.</summary>
-    public string Icon => IsError ? "✖" : "⚠";
+    /// <summary>Un dato escrito es incorrecto.</summary>
+    public bool IsError => Severity == IssueSeverity.Error;
+
+    /// <summary>Falta un dato obligatorio por rellenar (no es una equivocación).</summary>
+    public bool IsMissing => Severity == IssueSeverity.Missing;
+
+    /// <summary>Es solo una recomendación.</summary>
+    public bool IsWarning => Severity == IssueSeverity.Warning;
+
+    /// <summary>Impide guardar (error o dato pendiente).</summary>
+    public bool IsBlocking => Severity != IssueSeverity.Warning;
+
+    /// <summary>Clave de color de la fila: <c>error</c>, <c>missing</c> o <c>warning</c>.</summary>
+    public string Kind => Severity switch
+    {
+        IssueSeverity.Error => "error",
+        IssueSeverity.Missing => "missing",
+        _ => "warning"
+    };
+
+    /// <summary>Símbolo que acompaña al mensaje: ✖ error, ○ pendiente, ⚠ recomendación.</summary>
+    public string Icon => Severity switch
+    {
+        IssueSeverity.Error => "✖",
+        IssueSeverity.Missing => "○",
+        _ => "⚠"
+    };
 
     /// <summary>Texto completo de la fila: área y mensaje.</summary>
     public string Text => $"{Area}: {Message}";
 }
+
 
 /// <summary>
 /// Un destino dentro del editor (carpeta o Google Drive), con sus acciones: examinar, probar,
@@ -198,6 +255,28 @@ public sealed class DestinationEditorViewModel : ViewModelBase
 
     /// <summary>Error de validación del tipo (p. ej. Drive como destino principal).</summary>
     public string KindError { get => _kindError; set => Set(ref _kindError, value); }
+
+    // Lo que todavía falta por rellenar se muestra en tono neutro (no es un error del usuario).
+    private string _namePending = string.Empty;
+    private string _pathPending = string.Empty;
+    private string _clientPending = string.Empty;
+    private string _accountPending = string.Empty;
+    private string _folderPending = string.Empty;
+
+    /// <summary>Aviso neutro: falta el nombre del destino.</summary>
+    public string NamePending { get => _namePending; set => Set(ref _namePending, value); }
+
+    /// <summary>Aviso neutro: falta la carpeta.</summary>
+    public string PathPending { get => _pathPending; set => Set(ref _pathPending, value); }
+
+    /// <summary>Aviso neutro: faltan las credenciales de Google.</summary>
+    public string ClientPending { get => _clientPending; set => Set(ref _clientPending, value); }
+
+    /// <summary>Aviso neutro: falta conectar la cuenta de Google.</summary>
+    public string AccountPending { get => _accountPending; set => Set(ref _accountPending, value); }
+
+    /// <summary>Aviso neutro: falta la carpeta de Drive.</summary>
+    public string FolderPending { get => _folderPending; set => Set(ref _folderPending, value); }
 
     /// <summary>Resultado de la última prueba del destino.</summary>
     public string TestResult { get => _testResult; set => Set(ref _testResult, value); }
@@ -369,7 +448,7 @@ public sealed class DestinationEditorViewModel : ViewModelBase
             return;
         }
 
-        ConnectResult = "Se abrió el navegador: inicie sesión en Google y pulse «Permitir»…";
+        ConnectResult = "Se abrió el navegador: inicie sesión en Google y pulse «Permitir». Si Google muestra «Acceso bloqueado», agregue su correo como «usuario de prueba» en Google Cloud (ver la guía).";
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
@@ -384,7 +463,7 @@ public sealed class DestinationEditorViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            ConnectResult = "✖ Se agotó el tiempo de espera (5 minutos) sin autorizar.";
+            ConnectResult = "✖ Se agotó el tiempo de espera (5 minutos) sin autorizar. Si Google mostró «Acceso bloqueado» (error 403 access_denied), agregue su correo como «usuario de prueba» en Google Cloud o publique la aplicación (ver la guía).";
         }
         catch (Exception ex)
         {

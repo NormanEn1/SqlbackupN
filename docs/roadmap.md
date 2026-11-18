@@ -22,6 +22,7 @@
 
 - **Programación visual**: frecuencia en una lista, hora y minuto con selectores numéricos y días con botones; el cron queda como opción avanzada.
   Descripción en palabras de cada horario (`ScheduleBuilder`).
+- **Elegir las bases de una lista** tras probar la conexión; **pendiente ≠ error** en la validación.
 - **Google Drive más simple**: el destino principal es siempre una carpeta; las credenciales de Google se piden **una sola vez** (compartidas)
   con pasos guiados, o vienen incluidas con la aplicación (`google-client.json`).
 
@@ -29,7 +30,6 @@
 
 - [ ] Probar el espacio libre del destino y la cuenta real del servicio (no solo el usuario de la interfaz).
 - [ ] Botón para enviar un aviso de prueba al webhook.
-- [ ] Lista de bases del servidor para marcarlas en lugar de escribirlas.
 - [ ] Ejecutar desde la interfaz el tipo de backup que se elija (hoy "Ejecutar ahora" lanza el completo).
 - [ ] Panel con alerta "lleva N horas sin backup válido".
 - [ ] Reintentos configurables y espacio libre previo al backup.

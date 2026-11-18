@@ -22,9 +22,9 @@ esa carpeta. La cuenta del servicio solo necesita lectura de `jobs.json` y escri
 | `databases` | `mode`: `AllUserDatabases`, `Explicit` (con `names`) o `Pattern` (con `pattern`); `exclude` aplica a todos |
 | `steps` | Lista de pasos: `type` (`Full`, `Differential`, `TransactionLog`), `cron`, `enabled` |
 | `destinations` | Carpetas o Google Drive; el primero (siempre una carpeta) lo escribe SQL Server, los demás son copias |
-| `options` | `compression`, `checksum`, `copyOnly`, `verifyAfterBackup`, `commandTimeoutSeconds`, `pathTemplate` |
+| `options` | `compression`, `zipOutput`, `temporaryPrimary`, `checksum`, `copyOnly`, `verifyAfterBackup`, `commandTimeoutSeconds`, `pathTemplate` |
 | `retention` | `keepDays` y/o `keepLast` |
-| `notifications` | `webhookUrl`, `onSuccess`, `onWarning`, `onFailure` |
+| `notifications` | `webhookUrl`, `webhookFormat`, `webhookBodyTemplate`, `webhookAuth`, `webhookAuthHeader`, `protectedWebhookSecret`, `webhookHeaders`, `webhookRetries`, `webhookTimeoutSeconds`, `onSuccess`, `onWarning`, `onFailure`, `missedRunHours` |
 
 ## Programación
 
@@ -96,10 +96,64 @@ El más reciente nunca se borra. Sin ninguna de las dos opciones no se borra nad
 
 ## Notificaciones
 
-`webhookUrl` recibe un `POST` JSON `{"text": "..."}` (compatible con Slack y webhooks entrantes de Teams).
+`webhookUrl` recibe un `POST` JSON. El cuerpo depende de `webhookFormat`:
+
+| Formato | Cuerpo | Para |
+|---|---|---|
+| `Text` (por defecto) | `{"text": "..."}` | Slack, Teams y la mayoría de los webhooks entrantes |
+| `Json` | `{"event":"backup.run","status":"failed","job":"…","jobId":"…","type":"Full","server":"…","machine":"…","startedUtc":"…","finishedUtc":"…","durationSeconds":52,"message":"…","databases":[{"name","status","sizeBytes","durationSeconds","file","error","warnings"}]}` | HelpDesk, n8n, Zapier, Make o un servicio propio. Los avisos sueltos (prueba, job que no se ejecuta) llevan `event` = `test` o `backup.missed-run` y solo `status`, `machine` y `message`. `status` es `succeeded`, `warning`, `failed` o `skipped` |
+| `Custom` | el JSON de `webhookBodyTemplate` | Canales con un formato propio. Valores entre llaves y dentro de comillas: `{message} {summary} {job} {jobId} {status} {type} {server} {machine} {started} {finished} {duration} {event}`; se escapan solos para JSON (p. ej. `{"channel":"#backups","text":"{message}"}`) |
+
+`webhookAuth` elige la autenticación: `None`, `Bearer` (cabecera `Authorization: Bearer <token>`) o `Header` (la cabecera `webhookAuthHeader`, p. ej. `x-api-key`, con el secreto como valor).
+El secreto se guarda **cifrado con DPAPI** en `protectedWebhookSecret` (ámbito máquina: el servicio lo descifra, pero otro equipo no). `webhookHeaders` son cabeceras adicionales
+`Nombre: valor` (sin cifrar: no deben llevar secretos; no se pueden cambiar `Host`, `Content-Length`, `Content-Type`, `Transfer-Encoding` ni `Connection`).
+
+`webhookRetries` (0–5, por defecto 2) y `webhookTimeoutSeconds` (5–120, por defecto 15) controlan el envío. Solo se reintentan los fallos que pueden pasar solos:
+red, tiempo de espera, errores 5xx, 408 y 429 (esperas de 2, 6, 15, 30 y 60 s); un 401 o un 404 no se reintentan. El error dice qué respondió el servicio. Si al final no se entrega, la ejecución lo anota en su registro («No se pudo enviar el aviso…»). El texto lleva el estado, el
+job, el tipo y el servidor, y una línea por base con su resultado (tamaño, duración y archivo si salió bien; el error o las advertencias si no). En la pestaña
+«Retención y avisos» el botón «Enviar aviso de prueba» manda un mensaje de prueba y la pantalla muestra un ejemplo del aviso.
+
+`missedRunHours` (0 = desactivado) avisa cuando el job pasa más de esas horas sin ejecutarse (o desde que se creó, si nunca se ejecutó). Lo detecta el servicio de
+Windows mientras está en marcha, una vez por cada «última ejecución» (si el envío falla, reintenta a la hora). **No puede avisar de que el propio servicio o el
+servidor están apagados**: para eso hace falta un monitor externo.
 
 ## Contraseñas SQL
 
 Prefiera `useWindowsAuthentication: true`. Si usa autenticación SQL, escriba la contraseña en el editor: se
 guarda cifrada con DPAPI (ámbito máquina) en `protectedPassword`. No la escriba en claro a mano en el JSON;
 si lo hiciera, la conexión fallaría porque el servicio intentaría descifrarla.
+
+## Registro de cada ejecución
+
+Cada línea de `history.jsonl` es una ejecución e incluye `log`: la lista de pasos en orden cronológico, con `timeUtc`,
+`level` (`0` normal, `1` advertencia, `2` error), `database` (vacío si es de toda la ejecución) y `message`. Las
+ejecuciones anteriores a esta función no lo tienen: al hacer clic en ellas la interfaz muestra uno reconstruido con su resumen.
+
+## Salida en .zip
+
+Con `options.zipOutput = true` el flujo de cada base es: SQL Server escribe el `.bak` en la carpeta principal → se verifica
+→ se comprime en un `.zip` (con el mismo nombre de la plantilla, sin la extensión `.bak`) → se borra el `.bak` → el `.zip` es
+lo que se copia a los demás destinos, se sube a Drive y se somete a retención (se buscan archivos `*.zip`). Es un zip **por base**:
+con una sola base explícita, la plantilla `Backup{Date}` da `BackupAAAAMMDD.zip` en la raíz del destino; con varias, use
+`Backup{Date}_{Database}`. Si no se puede comprimir, la base falla y el `.bak` se conserva. Útil cuando la carpeta principal es un
+disco temporal (por ejemplo, el disco temporal de una máquina virtual de Azure): allí el `.bak` solo es un paso intermedio y
+lo que importa es que el zip llegue a Drive.
+
+## Carpeta principal temporal
+
+Con `options.temporaryPrimary = true` la carpeta principal (el primer destino) es solo un paso, como el disco temporal de una máquina virtual:
+SQL Server escribe el `.bak` allí, se verifica y (con `zipOutput`) se comprime; luego se copia a los demás destinos. **Solo cuando todas las copias están
+completas** se borran de la carpeta principal el archivo final y el `.bak`. «Completa» significa: en una carpeta, que el tamaño coincide con el original;
+en Google Drive, que la suma MD5 que informa Drive coincide. Si una copia falla, no se borra nada (queda en la carpeta principal y el job termina con
+advertencia). En ese modo no se aplica retención a la carpeta principal, porque se vacía sola. Requiere al menos otro destino.
+
+## Historial: borrar ejecuciones
+
+En el panel «Historial» de la interfaz: el icono de papelera de cada ejecución la borra (con confirmación); **Vaciar** borra todo el historial del job seleccionado y
+«Borrar el historial de todos los jobs» el de todos. Borrar del historial **no toca los archivos de backup**. Como `history.jsonl` lo escriben a la vez la interfaz, el servicio
+y el CLI, el borrado reescribe el archivo con acceso exclusivo: si el servicio termina una ejecución en ese instante, espera unos segundos y la agrega, así no se pierde ninguna.
+
+## Preferencias de la interfaz
+
+El modo claro/oscuro se guarda en `%LocalAppData%\Centinela\SqlBackupN\settings.json` (`{"theme": "System" | "Light" | "Dark"}`), por usuario de Windows; se puede
+cambiar la carpeta con la variable de entorno `SQLBACKUPN_USER`. Si el archivo no existe o está dañado se usa el modo automático.

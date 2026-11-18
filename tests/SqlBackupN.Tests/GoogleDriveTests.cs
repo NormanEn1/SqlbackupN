@@ -92,7 +92,7 @@ public class DriveValidationTests
     };
 
     private static List<string> ErrorFields(BackupJob job) =>
-        JobValidator.Validate(job).Where(i => i.Severity == IssueSeverity.Error).Select(i => i.Field).ToList();
+        JobValidator.Validate(job).Where(i => i.Severity != IssueSeverity.Warning).Select(i => i.Field).ToList();
 
     [Fact]
     public void A_connected_drive_copy_is_valid()
@@ -138,12 +138,12 @@ public class DriveValidationTests
     }
 
     [Fact]
-    public void Own_client_id_without_secret_is_an_error_even_with_shared_credentials()
+    public void Own_client_id_without_secret_is_incomplete_even_with_shared_credentials()
     {
         var job = Job(Drive(d => d.ProtectedClientSecret = null));
 
         Assert.Contains(JobValidator.Validate(job, null, googleClientAvailable: true),
-            i => i.Field == "Destinations[1].Drive.Client" && i.Severity == IssueSeverity.Error);
+            i => i.Field == "Destinations[1].Drive.Client" && i.Severity == IssueSeverity.Missing);
     }
 
     [Theory]
@@ -199,7 +199,8 @@ public class DriveJobRunnerTests
     private sealed class Files : IFileStore
     {
         public List<string> Copies { get; } = [];
-        public void EnsureDirectory(string path) { }
+        public void CreateZip(string sourceFile, string zipPath) { }
+    public void EnsureDirectory(string path) { }
         public void VerifyWritable(string directory) { }
         public void Copy(string source, string destination) => Copies.Add(destination);
         public void Delete(string path) { }
@@ -212,6 +213,8 @@ public class DriveJobRunnerTests
         public Task AppendAsync(JobRunRecord record, CancellationToken ct = default) => Task.CompletedTask;
         public Task<IReadOnlyList<JobRunRecord>> GetRecentAsync(Guid? jobId, int max, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<JobRunRecord>>([]);
+        public Task<int> DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<int> ClearAsync(Guid? jobId, CancellationToken ct = default) => Task.FromResult(0);
         public Task<DateTime?> GetLastRunUtcAsync(Guid jobId, Guid stepId, CancellationToken ct = default) =>
             Task.FromResult<DateTime?>(null);
     }
@@ -373,17 +376,34 @@ public class DriveEditorTests
     }
 
     [Fact]
-    public void Google_drive_cannot_be_added_before_the_primary_folder_exists()
+    public void Adding_google_drive_with_no_destinations_creates_the_primary_folder_first()
     {
         var job = BaseJob();
         job.Destinations.Clear();
         var rig = Create(job);
 
-        Assert.False(rig.Editor.AddDriveDestinationCommand.CanExecute(null));
-
-        rig.Editor.AddDestinationCommand.Execute(null);
-
         Assert.True(rig.Editor.AddDriveDestinationCommand.CanExecute(null));
+        rig.Editor.AddDriveDestinationCommand.Execute(null);
+
+        Assert.Equal(2, rig.Editor.Destinations.Count);
+        Assert.Equal(DestinationKind.Folder, rig.Editor.Destinations[0].Kind);
+        Assert.True(rig.Editor.Destinations[0].IsPrimary);
+        Assert.NotEmpty(rig.Editor.Destinations[0].PathPending);   // la carpeta principal está por indicar
+        Assert.Equal(DestinationKind.GoogleDrive, rig.Editor.Destinations[1].Kind);
+        Assert.False(rig.Editor.Destinations[1].IsPrimary);
+        Assert.True(rig.Editor.HasDrive);
+    }
+
+    [Fact]
+    public void Adding_google_drive_when_a_primary_folder_exists_adds_only_the_copy()
+    {
+        var rig = Create();
+
+        rig.Editor.AddDriveDestinationCommand.Execute(null);
+
+        Assert.Equal(2, rig.Editor.Destinations.Count);
+        Assert.Equal(DestinationKind.Folder, rig.Editor.Destinations[0].Kind);
+        Assert.Equal(DestinationKind.GoogleDrive, rig.Editor.Destinations[1].Kind);
     }
 
     [Fact]
@@ -403,7 +423,7 @@ public class DriveEditorTests
     // ------------------------------------------------------------ Credenciales de Google: una sola vez
 
     [Fact]
-    public void Adding_drive_without_credentials_opens_the_setup_and_shows_one_clear_error()
+    public void Adding_drive_without_credentials_opens_the_setup_and_shows_only_calm_pending_notes()
     {
         var rig = Create();
 
@@ -413,11 +433,14 @@ public class DriveEditorTests
         Assert.True(rig.Editor.ShowGoogleSetup);
         Assert.False(rig.Editor.GoogleClientConfigured);
         Assert.Equal("Pendiente de configurar", rig.Editor.GoogleStatusText);
-        Assert.Contains("credenciales", drive.ClientError);
-        Assert.NotEmpty(drive.AccountError);
+        Assert.Contains("credenciales", drive.ClientPending);
+        Assert.NotEmpty(drive.AccountPending);
         Assert.False(rig.Editor.CanSave);
-        // Sin la cascada de antes: un error de credenciales y uno de cuenta, nada más para este destino.
-        Assert.Equal(2, rig.Editor.Issues.Count(i => i.IsError && i.Area.StartsWith("Destinos")));
+        // Nada en rojo: el usuario todavía no se ha equivocado, solo falta completar.
+        Assert.Equal(0, rig.Editor.ErrorCount);
+        Assert.Equal(string.Empty, drive.ClientError);
+        Assert.Equal(string.Empty, drive.AccountError);
+        Assert.Equal(2, rig.Editor.Issues.Count(i => i.IsMissing && i.Area.StartsWith("Destinos")));
     }
 
     [Fact]
@@ -430,8 +453,8 @@ public class DriveEditorTests
         Assert.True(rig.Editor.GoogleClientConfigured);
         Assert.False(rig.Editor.ShowGoogleSetup);
         Assert.Equal("Configuradas", rig.Editor.GoogleStatusText);
-        Assert.Equal(string.Empty, drive.ClientError);
-        Assert.NotEmpty(drive.AccountError);   // solo falta conectar la cuenta
+        Assert.Equal(string.Empty, drive.ClientPending);
+        Assert.NotEmpty(drive.AccountPending);   // solo falta conectar la cuenta
         Assert.Equal("Cambiar", rig.Editor.GoogleSetupButtonText);
     }
 
@@ -445,7 +468,7 @@ public class DriveEditorTests
         rig.Editor.GoogleClientSecret = "secreto";
 
         Assert.True(rig.Editor.GoogleClientConfigured);
-        Assert.Equal(string.Empty, drive.ClientError);
+        Assert.Equal(string.Empty, drive.ClientPending);
     }
 
     [Fact]
@@ -481,7 +504,7 @@ public class DriveEditorTests
         Assert.Equal("secreto-plano", rig.Authorizer.LastClientSecret);
         Assert.Equal("Conectado como demo@example.test", drive.AccountText);
         Assert.StartsWith("✔", drive.ConnectResult);
-        Assert.Equal(string.Empty, drive.AccountError);
+        Assert.Equal(string.Empty, drive.AccountPending);
         Assert.True(rig.Editor.CanSave);
     }
 
@@ -526,6 +549,21 @@ public class DriveEditorTests
         await WaitUntil(() => drive.ConnectResult.StartsWith('✖'));
 
         Assert.Equal("✖ Google rechazó la autorización", drive.ConnectResult);
+        Assert.False(drive.IsConnected);
+    }
+
+    [Fact]
+    public async Task A_timed_out_connection_explains_the_blocked_access_screen_of_google()
+    {
+        var rig = Create(shared: Shared);
+        var drive = AddDrive(rig);
+        rig.Authorizer.Failure = new OperationCanceledException();
+
+        drive.ConnectCommand.Execute(null);
+        await WaitUntil(() => drive.ConnectResult.StartsWith('✖'));
+
+        Assert.Contains("Acceso bloqueado", drive.ConnectResult);
+        Assert.Contains("usuario de prueba", drive.ConnectResult);
         Assert.False(drive.IsConnected);
     }
 
@@ -616,7 +654,7 @@ public class DriveEditorTests
 
         Assert.False(drive.IsConnected);
         Assert.Equal("Sin conectar", drive.AccountText);
-        Assert.NotEmpty(drive.AccountError);
+        Assert.NotEmpty(drive.AccountPending);
         Assert.False(rig.Editor.CanSave);
     }
 
@@ -658,7 +696,7 @@ public class DriveEditorTests
         var rig = Create();
         AddDrive(rig);
 
-        var texts = rig.Editor.Issues.Where(i => i.IsError).Select(i => i.Text).ToList();
+        var texts = rig.Editor.Issues.Where(i => i.IsBlocking).Select(i => i.Text).ToList();
 
         Assert.Contains(texts, t => t.StartsWith("Destinos (destino 2): ", StringComparison.Ordinal));
     }

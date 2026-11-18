@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using SqlBackupN.Core.Abstractions;
 using SqlBackupN.Core.Domain;
+using SqlBackupN.Core.Infrastructure;
 using SqlBackupN.Core.Services;
 using SqlBackupN.Presentation.Infrastructure;
 
@@ -18,6 +19,7 @@ public sealed class JobEditorViewModel : ViewModelBase
 {
     /// <summary>Marca interna: "hay una contraseña nueva pendiente de cifrar".</summary>
     private const string PendingPassword = "\u0001pendiente";
+    private const string PendingWebhookSecret = "\u0001pendiente-token";
 
     private readonly BackupJob _original;
     private readonly bool _isNew;
@@ -43,6 +45,8 @@ public sealed class JobEditorViewModel : ViewModelBase
 
     // Opciones
     private bool _compression;
+    private bool _zipOutput;
+    private bool _temporaryPrimary;
     private bool _checksum;
     private bool _copyOnly;
     private bool _verifyAfterBackup;
@@ -61,12 +65,26 @@ public sealed class JobEditorViewModel : ViewModelBase
     private bool _onSuccess;
     private bool _onWarning;
     private bool _onFailure;
+    private bool _useMissedRun;
+    private string _missedRunHoursText;
+    private string _notificationTestResult = string.Empty;
+    private string _notificationPreview = string.Empty;
+    private WebhookFormat _webhookFormat;
+    private string _webhookBodyTemplate;
+    private WebhookAuth _webhookAuth;
+    private string _webhookAuthHeader;
+    private string _webhookSecret = string.Empty;
+    private string _webhookHeadersText;
+    private string _webhookRetriesText;
+    private string _webhookTimeoutText;
 
     // Resultado de la validación
     private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
     private IReadOnlyDictionary<string, string> _warnings = new Dictionary<string, string>();
     private int _errorCount;
     private int _warningCount;
+    private int _missingCount;
+    private IReadOnlyDictionary<string, string> _pending = new Dictionary<string, string>();
 
     // Credenciales de Google compartidas por todos los destinos de Drive
     private string _googleClientId = string.Empty;
@@ -99,6 +117,8 @@ public sealed class JobEditorViewModel : ViewModelBase
         _excludeText = string.Join(Environment.NewLine, job.Databases.Exclude);
 
         _compression = job.Options.Compression;
+        _zipOutput = job.Options.ZipOutput;
+        _temporaryPrimary = job.Options.TemporaryPrimary;
         _checksum = job.Options.Checksum;
         _copyOnly = job.Options.CopyOnly;
         _verifyAfterBackup = job.Options.VerifyAfterBackup;
@@ -114,6 +134,15 @@ public sealed class JobEditorViewModel : ViewModelBase
         _onSuccess = job.Notifications.OnSuccess;
         _onWarning = job.Notifications.OnWarning;
         _onFailure = job.Notifications.OnFailure;
+        _useMissedRun = job.Notifications.MissedRunHours > 0;
+        _webhookFormat = job.Notifications.WebhookFormat;
+        _webhookBodyTemplate = job.Notifications.WebhookBodyTemplate ?? "{\"text\": \"{message}\"}";
+        _webhookAuth = job.Notifications.WebhookAuth;
+        _webhookAuthHeader = job.Notifications.WebhookAuthHeader ?? string.Empty;
+        _webhookHeadersText = string.Join(Environment.NewLine, job.Notifications.WebhookHeaders);
+        _webhookRetriesText = job.Notifications.WebhookRetries.ToString(CultureInfo.InvariantCulture);
+        _webhookTimeoutText = job.Notifications.WebhookTimeoutSeconds.ToString(CultureInfo.InvariantCulture);
+        _missedRunHoursText = (job.Notifications.MissedRunHours > 0 ? job.Notifications.MissedRunHours : 26).ToString(CultureInfo.InvariantCulture);
 
         _hasSharedGoogleClient = services.GoogleClients.GetDefault() is not null;
         _showGoogleSetup = !_hasSharedGoogleClient &&
@@ -126,13 +155,20 @@ public sealed class JobEditorViewModel : ViewModelBase
         CancelCommand = new RelayCommand(() => CloseRequested?.Invoke(false));
         AddStepCommand = new RelayCommand(AddStep);
         ApplyPlanCommand = new RelayCommand(p => ApplyPlan(ParsePreset(p)));
+        SetNameTemplateCommand = new RelayCommand(p =>
+            NameTemplate = p as string is { Length: > 0 } t ? (t == "default" ? new BackupOptions().PathTemplate : t) : NameTemplate);
         AddDestinationCommand = new RelayCommand(AddDestination);
-        // Drive solo puede ser una copia: hace falta que ya exista la carpeta principal.
-        AddDriveDestinationCommand = new RelayCommand(AddDriveDestination, () => Destinations.Count > 0);
+        // Drive solo puede ser una copia: si aún no hay carpeta principal, se agrega una antes (ver AddDriveDestination).
+        AddDriveDestinationCommand = new RelayCommand(AddDriveDestination);
         ToggleGoogleSetupCommand = new RelayCommand(() => ShowGoogleSetup = !ShowGoogleSetup);
         OpenGoogleConsoleCommand = new RelayCommand(() => _svc.Dialogs.OpenUrl(HelpLinks.GoogleCloudCredentials));
         OpenGoogleGuideCommand = new RelayCommand(() => _svc.Dialogs.OpenUrl(HelpLinks.GoogleDriveGuide));
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync);
+        TestNotificationCommand = new AsyncRelayCommand(TestNotificationAsync);
+        LoadDatabasesCommand = new AsyncRelayCommand(LoadDatabasesAsync);
+        SelectAllDatabasesCommand = new RelayCommand(() => SelectDatabases(userOnly: true));
+        ClearDatabasesCommand = new RelayCommand(() => SelectDatabases(userOnly: false));
+        ToggleManualNamesCommand = new RelayCommand(() => ShowManualNames = !ShowManualNames);
 
         _loading = false;
         Revalidate();
@@ -176,22 +212,46 @@ public sealed class JobEditorViewModel : ViewModelBase
     /// <summary>Cantidad de advertencias.</summary>
     public int WarningCount { get => _warningCount; private set => Set(ref _warningCount, value); }
 
-    /// <summary>Guardar solo es posible sin errores (las advertencias no lo impiden).</summary>
-    public bool CanSave => ErrorCount == 0;
+    /// <summary>Cantidad de datos obligatorios que todavía faltan por rellenar.</summary>
+    public int MissingCount { get => _missingCount; private set => Set(ref _missingCount, value); }
 
-    /// <summary>Texto del resumen: "2 errores · 1 advertencia" o "Todo correcto".</summary>
-    public string SummaryText => (ErrorCount, WarningCount) switch
+    /// <summary>Datos que faltan por campo (mismas claves que <see cref="Errors"/>); se muestran en tono neutro, no como error.</summary>
+    public IReadOnlyDictionary<string, string> Pending { get => _pending; private set => Set(ref _pending, value); }
+
+    /// <summary>Guardar solo es posible sin errores y sin datos pendientes (las advertencias no lo impiden).</summary>
+    public bool CanSave => ErrorCount == 0 && MissingCount == 0;
+
+    /// <summary>
+    /// Texto del resumen: "Todo correcto", "Faltan 2 datos para poder guardar", "1 error · 1 advertencia"…
+    /// Lo pendiente se redacta como algo por completar, no como una equivocación.
+    /// </summary>
+    public string SummaryText
     {
-        (0, 0) => "Todo correcto",
-        (0, var w) => $"Sin errores · {w} {(w == 1 ? "advertencia" : "advertencias")}",
-        var (e, w) => $"{e} {(e == 1 ? "error" : "errores")} · {w} {(w == 1 ? "advertencia" : "advertencias")}"
-    };
+        get
+        {
+            var parts = new List<string>();
+            if (ErrorCount > 0) parts.Add($"{ErrorCount} {(ErrorCount == 1 ? "error" : "errores")}");
+            if (MissingCount > 0)
+            {
+                parts.Add(ErrorCount > 0
+                    ? $"{MissingCount} por completar"
+                    : MissingCount == 1 ? "Falta 1 dato para poder guardar" : $"Faltan {MissingCount} datos para poder guardar");
+            }
+            if (WarningCount > 0) parts.Add($"{WarningCount} {(WarningCount == 1 ? "advertencia" : "advertencias")}");
 
-    /// <summary>Clave de color del resumen: <c>error</c>, <c>warning</c> u <c>ok</c>.</summary>
-    public string SummaryKind => ErrorCount > 0 ? "error" : WarningCount > 0 ? "warning" : "ok";
+            if (parts.Count == 0) return "Todo correcto";
+            if (ErrorCount == 0 && MissingCount == 0) parts.Insert(0, "Sin errores");
+            return string.Join(" · ", parts);
+        }
+    }
 
-    /// <summary>Símbolo del resumen.</summary>
-    public string SummaryIcon => ErrorCount > 0 ? "✖" : WarningCount > 0 ? "⚠" : "✔";
+    /// <summary>Clave de color del resumen: <c>error</c>, <c>pending</c>, <c>warning</c> u <c>ok</c>.</summary>
+    public string SummaryKind =>
+        ErrorCount > 0 ? "error" : MissingCount > 0 ? "pending" : WarningCount > 0 ? "warning" : "ok";
+
+    /// <summary>Símbolo del resumen: ✖ error, ○ pendiente, ⚠ recomendación, ✔ todo correcto.</summary>
+    public string SummaryIcon =>
+        ErrorCount > 0 ? "✖" : MissingCount > 0 ? "○" : WarningCount > 0 ? "⚠" : "✔";
 
     /// <summary>Guarda el job (solo si no hay errores) y cierra la ventana.</summary>
     public RelayCommand SaveCommand { get; }
@@ -208,7 +268,10 @@ public sealed class JobEditorViewModel : ViewModelBase
     /// <summary>Agrega un destino de tipo carpeta.</summary>
     public RelayCommand AddDestinationCommand { get; }
 
-    /// <summary>Agrega un destino de tipo Google Drive (solo disponible si ya hay una carpeta principal).</summary>
+    /// <summary>
+    /// Agrega un destino de tipo Google Drive. Como Drive siempre es una copia, si todavía no hay carpeta principal
+    /// se agrega una primero (SQL Server escribe allí el backup).
+    /// </summary>
     public RelayCommand AddDriveDestinationCommand { get; }
 
     /// <summary>Muestra u oculta los pasos y campos de las credenciales de Google.</summary>
@@ -220,8 +283,20 @@ public sealed class JobEditorViewModel : ViewModelBase
     /// <summary>Abre la guía paso a paso.</summary>
     public RelayCommand OpenGoogleGuideCommand { get; }
 
-    /// <summary>Prueba la conexión con el servidor.</summary>
+    /// <summary>Prueba la conexión con el servidor (y carga la lista de bases para elegirlas).</summary>
     public AsyncRelayCommand TestConnectionCommand { get; }
+
+    /// <summary>Lee las bases del servidor para elegirlas de una lista.</summary>
+    public AsyncRelayCommand LoadDatabasesCommand { get; }
+
+    /// <summary>Marca todas las bases de usuario de la lista.</summary>
+    public RelayCommand SelectAllDatabasesCommand { get; }
+
+    /// <summary>Desmarca todas las bases de la lista.</summary>
+    public RelayCommand ClearDatabasesCommand { get; }
+
+    /// <summary>Alterna entre la lista y escribir los nombres a mano.</summary>
+    public RelayCommand ToggleManualNamesCommand { get; }
 
     // ---------------------------------------------------------------- General y servidor
 
@@ -232,7 +307,11 @@ public sealed class JobEditorViewModel : ViewModelBase
     public bool Enabled { get => _enabled; set => Edit(ref _enabled, value); }
 
     /// <summary>Servidor o instancia.</summary>
-    public string Server { get => _server; set => Edit(ref _server, value ?? string.Empty); }
+    public string Server
+    {
+        get => _server;
+        set { if (Edit(ref _server, value ?? string.Empty)) InvalidateServerDatabases(); }
+    }
 
     /// <summary>Autenticación de Windows (si es <c>false</c>, autenticación SQL).</summary>
     public bool UseWindowsAuthentication
@@ -242,6 +321,7 @@ public sealed class JobEditorViewModel : ViewModelBase
         {
             if (!Edit(ref _useWindowsAuthentication, value)) return;
             Raise(nameof(UseSqlAuthentication));
+            InvalidateServerDatabases();
         }
     }
 
@@ -249,7 +329,11 @@ public sealed class JobEditorViewModel : ViewModelBase
     public bool UseSqlAuthentication => !_useWindowsAuthentication;
 
     /// <summary>Usuario SQL.</summary>
-    public string UserName { get => _userName; set => Edit(ref _userName, value ?? string.Empty); }
+    public string UserName
+    {
+        get => _userName;
+        set { if (Edit(ref _userName, value ?? string.Empty)) InvalidateServerDatabases(); }
+    }
 
     /// <summary>Contraseña SQL nueva (texto en claro, solo en memoria; se cifra al guardar).</summary>
     public string Password
@@ -259,6 +343,7 @@ public sealed class JobEditorViewModel : ViewModelBase
         {
             if (!Edit(ref _password, value ?? string.Empty)) return;
             Raise(nameof(PasswordHint));
+            InvalidateServerDatabases();
         }
     }
 
@@ -271,7 +356,11 @@ public sealed class JobEditorViewModel : ViewModelBase
         : "Se guarda cifrada con DPAPI; nunca en texto plano.";
 
     /// <summary>Confía en el certificado del servidor.</summary>
-    public bool TrustServerCertificate { get => _trustServerCertificate; set => Edit(ref _trustServerCertificate, value); }
+    public bool TrustServerCertificate
+    {
+        get => _trustServerCertificate;
+        set { if (Edit(ref _trustServerCertificate, value)) InvalidateServerDatabases(); }
+    }
 
     /// <summary>Resultado de la última prueba de conexión.</summary>
     public string ConnectionTestResult { get => _connectionTestResult; private set => Set(ref _connectionTestResult, value); }
@@ -288,7 +377,14 @@ public sealed class JobEditorViewModel : ViewModelBase
     public bool IsPatternDatabases { get => _dbMode == DatabaseSelectionMode.Pattern; set { if (value) SetMode(DatabaseSelectionMode.Pattern); } }
 
     /// <summary>Nombres de bases, uno por línea.</summary>
-    public string NamesText { get => _namesText; set => Edit(ref _namesText, value ?? string.Empty); }
+    public string NamesText
+    {
+        get => _namesText;
+        set
+        {
+            if (Edit(ref _namesText, value ?? string.Empty)) SyncChoicesFromNames();
+        }
+    }
 
     /// <summary>Patrón de nombres (<c>*</c> y <c>?</c>).</summary>
     public string Pattern { get => _pattern; set => Edit(ref _pattern, value ?? string.Empty); }
@@ -301,6 +397,12 @@ public sealed class JobEditorViewModel : ViewModelBase
     /// <summary>Comprimir el backup.</summary>
     public bool Compression { get => _compression; set => Edit(ref _compression, value); }
 
+    /// <summary>Guardar cada backup como un .zip (se borra el .bak de la carpeta principal).</summary>
+    public bool ZipOutput { get => _zipOutput; set => Edit(ref _zipOutput, value); }
+
+    /// <summary>La carpeta principal es una unidad temporal: se vacía cuando las copias a los destinos finales están completas.</summary>
+    public bool TemporaryPrimary { get => _temporaryPrimary; set => Edit(ref _temporaryPrimary, value); }
+
     /// <summary>Calcular y verificar sumas de comprobación.</summary>
     public bool Checksum { get => _checksum; set => Edit(ref _checksum, value); }
 
@@ -312,6 +414,9 @@ public sealed class JobEditorViewModel : ViewModelBase
 
     /// <summary>Tiempo máximo por comando en segundos (0 = sin límite).</summary>
     public string TimeoutText { get => _timeoutText; set => Edit(ref _timeoutText, value ?? string.Empty); }
+
+    /// <summary>Pone una plantilla de nombre lista para usar (el texto, o <c>default</c> para la predeterminada).</summary>
+    public RelayCommand SetNameTemplateCommand { get; }
 
     /// <summary>Plantilla de ruta y nombre de archivo.</summary>
     public string NameTemplate { get => _nameTemplate; set => Edit(ref _nameTemplate, value ?? string.Empty); }
@@ -346,6 +451,102 @@ public sealed class JobEditorViewModel : ViewModelBase
 
     /// <summary>Avisar si hay fallos.</summary>
     public bool OnFailure { get => _onFailure; set => Edit(ref _onFailure, value); }
+
+    /// <summary>Avisar si el job pasa muchas horas sin ejecutarse.</summary>
+    public bool UseMissedRun { get => _useMissedRun; set => Edit(ref _useMissedRun, value); }
+
+    /// <summary>Horas sin ejecutarse a partir de las cuales se avisa.</summary>
+    public string MissedRunHoursText { get => _missedRunHoursText; set => Edit(ref _missedRunHoursText, value ?? string.Empty); }
+
+    /// <summary>Formatos disponibles para el cuerpo del mensaje.</summary>
+    public IReadOnlyList<WebhookFormatOption> WebhookFormats => WebhookFormatOption.All;
+
+    /// <summary>Modos de autenticación disponibles.</summary>
+    public IReadOnlyList<WebhookAuthOption> WebhookAuths => WebhookAuthOption.All;
+
+    /// <summary>Forma del cuerpo que se envía al webhook.</summary>
+    public WebhookFormat WebhookFormat
+    {
+        get => _webhookFormat;
+        set
+        {
+            if (!Edit(ref _webhookFormat, value)) return;
+            Raise(nameof(ShowCustomTemplate));
+            Raise(nameof(WebhookFormatHint));
+        }
+    }
+
+    /// <summary>Explicación del formato elegido.</summary>
+    public string WebhookFormatHint => _webhookFormat switch
+    {
+        WebhookFormat.Json => "Un JSON con el job, el estado, el servidor, las horas y una entrada por base de datos. Para HelpDesk, n8n, Zapier, Make o un servicio propio.",
+        WebhookFormat.Custom => "Usted arma el JSON con una plantilla y valores como {job} o {message}. Útil para canales con un formato propio.",
+        _ => "Un JSON {\"text\": \"…\"} con el aviso en texto. Es lo que esperan Slack, Teams y la mayoría de los webhooks entrantes."
+    };
+
+    /// <summary><c>true</c> si el formato es la plantilla propia.</summary>
+    public bool ShowCustomTemplate => _webhookFormat == WebhookFormat.Custom;
+
+    /// <summary>Plantilla JSON del formato personalizado.</summary>
+    public string WebhookBodyTemplate { get => _webhookBodyTemplate; set => Edit(ref _webhookBodyTemplate, value ?? string.Empty); }
+
+    /// <summary>Cómo se autentica el envío.</summary>
+    public WebhookAuth WebhookAuth
+    {
+        get => _webhookAuth;
+        set
+        {
+            if (!Edit(ref _webhookAuth, value)) return;
+            Raise(nameof(ShowAuthHeaderName));
+            Raise(nameof(ShowAuthSecret));
+        }
+    }
+
+    /// <summary><c>true</c> si hay que pedir el nombre de la cabecera.</summary>
+    public bool ShowAuthHeaderName => _webhookAuth == WebhookAuth.Header;
+
+    /// <summary><c>true</c> si hay que pedir el token o la clave.</summary>
+    public bool ShowAuthSecret => _webhookAuth != WebhookAuth.None;
+
+    /// <summary>Nombre de la cabecera de autenticación propia.</summary>
+    public string WebhookAuthHeader { get => _webhookAuthHeader; set => Edit(ref _webhookAuthHeader, value ?? string.Empty); }
+
+    /// <summary>Token o clave escritos (la pantalla nunca muestra el guardado).</summary>
+    public string WebhookSecret
+    {
+        get => _webhookSecret;
+        set
+        {
+            if (!Edit(ref _webhookSecret, value ?? string.Empty)) return;
+            Raise(nameof(WebhookSecretHint));
+        }
+    }
+
+    /// <summary><c>true</c> si el job ya tenía un token guardado.</summary>
+    public bool HasStoredWebhookSecret => !string.IsNullOrEmpty(_original.Notifications.ProtectedWebhookSecret);
+
+    /// <summary>Texto bajo el campo del token.</summary>
+    public string WebhookSecretHint => HasStoredWebhookSecret && _webhookSecret.Length == 0
+        ? "Hay un token guardado (cifrado). Déjelo vacío para conservarlo o escriba uno nuevo para cambiarlo."
+        : "Se guarda cifrado en este equipo; no se vuelve a mostrar.";
+
+    /// <summary>Cabeceras adicionales, una por línea (<c>Nombre: valor</c>).</summary>
+    public string WebhookHeadersText { get => _webhookHeadersText; set => Edit(ref _webhookHeadersText, value ?? string.Empty); }
+
+    /// <summary>Reintentos ante fallos temporales.</summary>
+    public string WebhookRetriesText { get => _webhookRetriesText; set => Edit(ref _webhookRetriesText, value ?? string.Empty); }
+
+    /// <summary>Segundos máximos de espera por intento.</summary>
+    public string WebhookTimeoutText { get => _webhookTimeoutText; set => Edit(ref _webhookTimeoutText, value ?? string.Empty); }
+
+    /// <summary>Envía un mensaje de prueba al webhook escrito.</summary>
+    public AsyncRelayCommand TestNotificationCommand { get; }
+
+    /// <summary>Resultado del último aviso de prueba.</summary>
+    public string NotificationTestResult { get => _notificationTestResult; private set => Set(ref _notificationTestResult, value); }
+
+    /// <summary>Ejemplo del mensaje que llegará cuando un backup falle (armado con el mismo código que el aviso real).</summary>
+    public string NotificationPreview { get => _notificationPreview; private set => Set(ref _notificationPreview, value); }
 
     // ---------------------------------------------------------------- Credenciales de Google (compartidas)
 
@@ -399,6 +600,124 @@ public sealed class JobEditorViewModel : ViewModelBase
         GoogleClientTyped
             ? new GoogleClient(_googleClientId.Trim(), _googleClientSecret)
             : _svc.GoogleClients.GetDefault();
+
+    // ---------------------------------------------------------------- Bases del servidor (lista para elegir)
+
+    private bool _showManualNames;
+    private bool _syncingNames;
+    private string _databasesLoadResult = string.Empty;
+
+    /// <summary>Bases del servidor, para marcarlas (se llena al probar la conexión o al pulsar "Cargar bases").</summary>
+    public ObservableCollection<DatabaseChoice> ServerDatabases { get; } = [];
+
+    /// <summary><c>true</c> si ya se leyó la lista de bases del servidor.</summary>
+    public bool HasServerDatabases => ServerDatabases.Count > 0;
+
+    /// <summary>Elegir escribir los nombres a mano aunque haya lista.</summary>
+    public bool ShowManualNames
+    {
+        get => _showManualNames;
+        set
+        {
+            if (!Set(ref _showManualNames, value)) return;
+            RaiseDatabaseList();
+        }
+    }
+
+    /// <summary>Se muestra la lista de bases con casillas (hay lista y no se eligió escribir a mano).</summary>
+    public bool ShowDatabaseList => HasServerDatabases && !_showManualNames;
+
+    /// <summary>Se muestra el cuadro para escribir los nombres a mano.</summary>
+    public bool ShowManualEditor => !ShowDatabaseList;
+
+    /// <summary>Resultado de la última lectura de bases (vacío si fue bien).</summary>
+    public string DatabasesLoadResult { get => _databasesLoadResult; private set => Set(ref _databasesLoadResult, value); }
+
+    /// <summary>Cantidad de bases marcadas en la lista.</summary>
+    public int SelectedDatabaseCount => ServerDatabases.Count(c => c.IsSelected);
+
+    /// <summary>Texto de ayuda sobre la lista de bases.</summary>
+    public string DatabasesHint => HasServerDatabases
+        ? $"{ServerDatabases.Count} bases en el servidor · {SelectedDatabaseCount} elegidas."
+        : "Pruebe la conexión en «General y servidor» o pulse «Cargar bases del servidor» para elegirlas de una lista.";
+
+    private void SetServerDatabases(IEnumerable<string> names)
+    {
+        var chosen = SplitLines(_namesText).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ServerDatabases.Clear();
+        foreach (var name in names.Order(StringComparer.OrdinalIgnoreCase))
+            ServerDatabases.Add(new DatabaseChoice(name, chosen.Contains(name), _ => UpdateNamesFromChoices()));
+
+        _showManualNames = false;
+        Raise(nameof(ShowManualNames));
+        RaiseDatabaseList();
+    }
+
+    /// <summary>La lista ya no corresponde al servidor/credenciales actuales: se descarta.</summary>
+    private void InvalidateServerDatabases()
+    {
+        if (ServerDatabases.Count == 0 && ConnectionTestResult.Length == 0 && DatabasesLoadResult.Length == 0) return;
+
+        ServerDatabases.Clear();
+        ConnectionTestResult = string.Empty;
+        DatabasesLoadResult = string.Empty;
+        RaiseDatabaseList();
+    }
+
+    private void RaiseDatabaseList()
+    {
+        Raise(nameof(HasServerDatabases));
+        Raise(nameof(ShowDatabaseList));
+        Raise(nameof(ShowManualEditor));
+        Raise(nameof(SelectedDatabaseCount));
+        Raise(nameof(DatabasesHint));
+    }
+
+    /// <summary>Al marcar/desmarcar en la lista: reescribe los nombres, respetando los que se escribieron a mano y no están en el servidor.</summary>
+    private void UpdateNamesFromChoices()
+    {
+        if (_syncingNames) return;
+        _syncingNames = true;
+        try
+        {
+            var known = ServerDatabases.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var extras = SplitLines(_namesText).Where(n => !known.Contains(n));
+            var names = ServerDatabases.Where(c => c.IsSelected).Select(c => c.Name).Concat(extras);
+            NamesText = string.Join(Environment.NewLine, names);
+        }
+        finally
+        {
+            _syncingNames = false;
+        }
+
+        Raise(nameof(SelectedDatabaseCount));
+        Raise(nameof(DatabasesHint));
+    }
+
+    /// <summary>Al escribir los nombres a mano: marca en la lista las bases que coinciden.</summary>
+    private void SyncChoicesFromNames()
+    {
+        if (_syncingNames || ServerDatabases.Count == 0) return;
+        _syncingNames = true;
+        try
+        {
+            var chosen = SplitLines(_namesText).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var choice in ServerDatabases) choice.SetSelected(chosen.Contains(choice.Name));
+        }
+        finally
+        {
+            _syncingNames = false;
+        }
+
+        Raise(nameof(SelectedDatabaseCount));
+        Raise(nameof(DatabasesHint));
+    }
+
+    private void SelectDatabases(bool userOnly)
+    {
+        foreach (var choice in ServerDatabases) choice.SetSelected(userOnly && !choice.IsSystem);
+        UpdateNamesFromChoices();
+    }
 
     // ---------------------------------------------------------------- Lógica
 
@@ -464,6 +783,8 @@ public sealed class JobEditorViewModel : ViewModelBase
 
     private void AddDriveDestination()
     {
+        // Drive nunca es el destino principal: se crea la carpeta principal si falta y la copia va después.
+        if (Destinations.Count == 0) AddDestination();
         if (!GoogleClientConfigured) ShowGoogleSetup = true;
         Destinations.Add(NewDestination(new DestinationConfig
         {
@@ -489,15 +810,96 @@ public sealed class JobEditorViewModel : ViewModelBase
         Revalidate();
     }
 
-    private async Task TestConnectionAsync()
+    private async Task TestNotificationAsync()
     {
-        if (string.IsNullOrWhiteSpace(Server))
+        if (string.IsNullOrWhiteSpace(WebhookUrl))
         {
-            ConnectionTestResult = "✖ Indique primero el servidor.";
+            NotificationTestResult = "Escriba primero la dirección del webhook.";
+            return;
+        }
+        if (_svc.Notifier is null)
+        {
+            NotificationTestResult = "No hay un canal de avisos disponible en esta ventana.";
             return;
         }
 
+        // Se prueba con lo que hay en pantalla (formato, plantilla, autenticación…), no con lo último guardado.
+        if (Errors.FirstOrDefault(e => e.Key.StartsWith("Notifications.", StringComparison.Ordinal)) is { Value: not null } problem)
+        {
+            NotificationTestResult = "✖ Corrija primero: " + problem.Value;
+            return;
+        }
+        if (WebhookAuth != WebhookAuth.None && _webhookSecret.Length == 0 && !HasStoredWebhookSecret)
+        {
+            NotificationTestResult = "Escriba primero el token o la clave de autorización.";
+            return;
+        }
+
+        NotificationTestResult = "Enviando…";
+        var settings = BuildDraft(new List<ValidationIssue>()).Notifications;
+        var name = string.IsNullOrWhiteSpace(Name) ? "sin nombre" : Name.Trim();
+        try
+        {
+            if (settings.ProtectedWebhookSecret == PendingWebhookSecret)
+                settings.ProtectedWebhookSecret = _svc.Protector.Protect(_webhookSecret);
+            await _svc.Notifier.SendMessageAsync(
+                settings, NoticeKind.Test,
+                $"[PRUEBA] SQL Backup N - aviso de prueba del job '{name}' desde {Environment.MachineName}. Si lo está leyendo, los avisos funcionan.",
+                CancellationToken.None);
+            NotificationTestResult = "✔ Enviado. Compruebe que llegó al canal.";
+        }
+        catch (Exception ex)
+        {
+            NotificationTestResult = "✖ No se pudo enviar: " + ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// Lo que se enviaría ante un fallo, armado con el mismo código que usa el aviso real (con el formato, la plantilla y los
+    /// valores de la pantalla).
+    /// </summary>
+    private static string BuildNotificationPreview(BackupJob draft)
+    {
+        var started = new DateTime(2026, 11, 17, 23, 0, 0, DateTimeKind.Utc);
+        var record = new JobRunRecord
+        {
+            JobId = draft.Id,
+            JobName = string.IsNullOrWhiteSpace(draft.Name) ? "Mi job" : draft.Name.Trim(),
+            Type = BackupType.Full,
+            Status = RunStatus.Failed,
+            StartedUtc = started,
+            FinishedUtc = started.AddSeconds(52),
+            Results =
+            [
+                new DatabaseBackupResult { Database = "Ventas", Status = RunStatus.Succeeded, SizeBytes = 308_000_000, Duration = TimeSpan.FromSeconds(48), FilePath = "Backup20261117.zip" },
+                new DatabaseBackupResult { Database = "Compras", Status = RunStatus.Failed, Error = "no hay espacio en disco" }
+            ]
+        };
+        return WebhookPayload.ForRun(draft, record, Environment.MachineName);
+    }
+
+    private async Task TestConnectionAsync()
+    {
         ConnectionTestResult = "Probando conexión…";
+        ConnectionTestResult = await RefreshServerDatabasesAsync(describe: true);
+    }
+
+    private async Task LoadDatabasesAsync()
+    {
+        DatabasesLoadResult = "Leyendo las bases del servidor…";
+        var result = await RefreshServerDatabasesAsync(describe: false);
+        DatabasesLoadResult = result.StartsWith('✖') ? result : string.Empty;
+    }
+
+    /// <summary>
+    /// Se conecta al servidor, lee sus bases y las deja disponibles para elegirlas en la lista.
+    /// Devuelve el mensaje para el usuario (empieza por ✔ o ✖).
+    /// </summary>
+    private async Task<string> RefreshServerDatabasesAsync(bool describe)
+    {
+        if (string.IsNullOrWhiteSpace(Server))
+            return "✖ Indique primero el servidor (pestaña «General y servidor»).";
+
         try
         {
             var connection = new SqlServerConnection
@@ -513,12 +915,16 @@ public sealed class JobEditorViewModel : ViewModelBase
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             var databases = await _svc.Executor.ListDatabasesAsync(connection, cts.Token);
+            SetServerDatabases(databases);
+
+            if (!describe) return $"✔ {databases.Count} bases leídas.";
+
             var sample = string.Join(", ", databases.Take(12)) + (databases.Count > 12 ? "…" : string.Empty);
-            ConnectionTestResult = $"✔ Conexión correcta · {databases.Count} bases: {sample}";
+            return $"✔ Conexión correcta · {databases.Count} bases: {sample}. Ya puede elegirlas en la pestaña «Bases de datos».";
         }
         catch (Exception ex)
         {
-            ConnectionTestResult = "✖ " + ex.Message.Split('\n')[0].Trim();
+            return "✖ " + ex.Message.Split('\n')[0].Trim();
         }
     }
 
@@ -531,6 +937,8 @@ public sealed class JobEditorViewModel : ViewModelBase
         {
             if (job.Connection.ProtectedPassword == PendingPassword)
                 job.Connection.ProtectedPassword = _svc.Protector.Protect(_password);
+            if (job.Notifications.ProtectedWebhookSecret == PendingWebhookSecret)
+                job.Notifications.ProtectedWebhookSecret = _svc.Protector.Protect(_webhookSecret);
 
             // Credenciales de Google: se guardan una sola vez, cifradas, para todos los destinos.
             if (GoogleClientTyped && HasDrive)
@@ -582,6 +990,8 @@ public sealed class JobEditorViewModel : ViewModelBase
             Options = new BackupOptions
             {
                 Compression = Compression,
+                ZipOutput = ZipOutput,
+                TemporaryPrimary = TemporaryPrimary,
                 Checksum = Checksum,
                 CopyOnly = CopyOnly,
                 VerifyAfterBackup = VerifyAfterBackup,
@@ -598,14 +1008,28 @@ public sealed class JobEditorViewModel : ViewModelBase
                 WebhookUrl = string.IsNullOrWhiteSpace(WebhookUrl) ? null : WebhookUrl.Trim(),
                 OnSuccess = OnSuccess,
                 OnWarning = OnWarning,
-                OnFailure = OnFailure
+                OnFailure = OnFailure,
+                MissedRunHours = UseMissedRun
+                    ? ParseInt(MissedRunHoursText, "Notifications.MissedRunHours", "Las horas", parseIssues, 26) ?? 0
+                    : 0,
+                WebhookFormat = WebhookFormat,
+                WebhookBodyTemplate = WebhookFormat == WebhookFormat.Custom && !string.IsNullOrWhiteSpace(WebhookBodyTemplate)
+                    ? WebhookBodyTemplate.Trim() : null,
+                WebhookAuth = WebhookAuth,
+                WebhookAuthHeader = WebhookAuth == WebhookAuth.Header ? WebhookAuthHeader.Trim() : null,
+                ProtectedWebhookSecret = WebhookAuth == WebhookAuth.None ? null
+                    : _webhookSecret.Length > 0 ? PendingWebhookSecret
+                    : _original.Notifications.ProtectedWebhookSecret,
+                WebhookHeaders = SplitLines(WebhookHeadersText),
+                WebhookRetries = ParseInt(WebhookRetriesText, "Notifications.WebhookRetries", "Los reintentos", parseIssues, 2) ?? 2,
+                WebhookTimeoutSeconds = ParseInt(WebhookTimeoutText, "Notifications.WebhookTimeoutSeconds", "El tiempo de espera", parseIssues, 15) ?? 15
             }
         };
         // Un paso por días (semanal, cada pocas horas/minutos) sin ningún día marcado no genera cron válido.
         for (var i = 0; i < Steps.Count; i++)
         {
             if (Steps[i].NoDays)
-                parseIssues.Add(new ValidationIssue(IssueSeverity.Error, $"Steps[{i}].Cron", "Marque al menos un día de la semana."));
+                parseIssues.Add(new ValidationIssue(IssueSeverity.Missing, $"Steps[{i}].Cron", "Marque al menos un día de la semana."));
         }
 
         return job;
@@ -631,13 +1055,15 @@ public sealed class JobEditorViewModel : ViewModelBase
         issues.AddRange(JobValidator.Validate(draft, _otherNames, GoogleClientConfigured));
 
         Errors = ToMap(issues, IssueSeverity.Error);
+        Pending = ToMap(issues, IssueSeverity.Missing);
         Warnings = ToMap(issues, IssueSeverity.Warning);
 
         Issues.Clear();
         foreach (var issue in issues.OrderBy(i => i.Severity))
-            Issues.Add(new IssueRow(issue.Severity == IssueSeverity.Error, AreaOf(issue.Field), issue.Message));
+            Issues.Add(new IssueRow(issue.Severity, AreaOf(issue.Field), issue.Message));
 
         ErrorCount = issues.Count(i => i.Severity == IssueSeverity.Error);
+        MissingCount = issues.Count(i => i.Severity == IssueSeverity.Missing);
         WarningCount = issues.Count(i => i.Severity == IssueSeverity.Warning);
         Raise(nameof(CanSave));
         Raise(nameof(SummaryText));
@@ -660,6 +1086,11 @@ public sealed class JobEditorViewModel : ViewModelBase
             d.NameError = Errors.GetValueOrDefault($"Destinations[{i}].Name", string.Empty);
             d.PathError = Errors.GetValueOrDefault($"Destinations[{i}].Path", string.Empty);
             d.KindError = Errors.GetValueOrDefault($"Destinations[{i}].Kind", string.Empty);
+            d.NamePending = Pending.GetValueOrDefault($"Destinations[{i}].Name", string.Empty);
+            d.PathPending = Pending.GetValueOrDefault($"Destinations[{i}].Path", string.Empty);
+            d.ClientPending = Pending.GetValueOrDefault($"Destinations[{i}].Drive.Client", string.Empty);
+            d.AccountPending = Pending.GetValueOrDefault($"Destinations[{i}].Drive.Account", string.Empty);
+            d.FolderPending = Pending.GetValueOrDefault($"Destinations[{i}].Drive.Folder", string.Empty);
             d.IsPrimary = i == 0;
             d.ClientError = Errors.GetValueOrDefault($"Destinations[{i}].Drive.Client", string.Empty);
             d.AccountError = Errors.GetValueOrDefault($"Destinations[{i}].Drive.Account", string.Empty);
@@ -670,9 +1101,9 @@ public sealed class JobEditorViewModel : ViewModelBase
         Raise(nameof(GoogleClientConfigured));
         Raise(nameof(GoogleStatusText));
         Raise(nameof(GoogleSetupButtonText));
-        AddDriveDestinationCommand.NotifyCanExecuteChanged();
 
         PathPreview = BuildPathPreview(draft);
+        NotificationPreview = BuildNotificationPreview(draft);
     }
 
     /// <summary>Traduce el campo del validador a la pestaña donde el usuario lo corrige.</summary>
@@ -719,7 +1150,7 @@ public sealed class JobEditorViewModel : ViewModelBase
             var folder = draft.Destinations.Count > 0 && draft.Destinations[0].Path.Length > 0
                 ? draft.Destinations[0].Path.TrimEnd('\\', '/')
                 : "<carpeta>";
-            return $"Ejemplo: {folder}{Path.DirectorySeparatorChar}{relative}.bak";
+            return $"Ejemplo: {folder}{Path.DirectorySeparatorChar}{relative}{(draft.Options.ZipOutput ? ".zip" : ".bak")}";
         }
         catch (FormatException)
         {

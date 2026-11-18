@@ -128,7 +128,9 @@ async Task<int> RunAsync()
     using var cts = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-    var record = await services.GetRequiredService<JobRunner>().RunStepAsync(job, step, superseded: false, cts.Token);
+    // Sin --json se escribe en vivo cada paso (en el error estándar, para no mezclarlo con el resultado final).
+    IProgress<RunLogEntry>? live = options.Json ? null : new LiveLog();
+    var record = await services.GetRequiredService<JobRunner>().RunStepAsync(job, step, superseded: false, cts.Token, live);
 
     if (options.Json)
     {
@@ -177,4 +179,15 @@ internal sealed class CliOptions
     public List<string> Positional { get; } = [];
     public bool Json => _named.ContainsKey("json");
     public string? Get(string key) => _named.GetValueOrDefault(key);
+}
+
+/// <summary>Escribe cada línea del registro de ejecución en el error estándar apenas ocurre.</summary>
+internal sealed class LiveLog : IProgress<RunLogEntry>
+{
+    public void Report(RunLogEntry entry)
+    {
+        var mark = entry.Level switch { RunLogLevel.Error => "ERROR", RunLogLevel.Warning => "AVISO", _ => "     " };
+        var scope = entry.Database is null ? string.Empty : $"[{entry.Database}] ";
+        Console.Error.WriteLine($"{entry.TimeUtc.ToLocalTime():HH:mm:ss} {mark} {scope}{entry.Message}");
+    }
 }

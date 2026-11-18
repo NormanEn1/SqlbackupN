@@ -315,7 +315,7 @@ public class StepEditorViewModelTests
         editor.Steps[0].Monday = false;
 
         Assert.False(editor.CanSave);
-        Assert.Contains(editor.Issues, i => i.IsError && i.Text == "Programación (paso 1): Marque al menos un día de la semana.");
-        Assert.Equal("Marque al menos un día de la semana.", editor.Steps[0].Error);
+        Assert.Contains(editor.Issues, i => i.IsMissing && i.Text == "Programación (paso 1): Marque al menos un día de la semana.");
+        Assert.Equal("Marque al menos un día de la semana.", editor.Steps[0].Summary);
     }
 }

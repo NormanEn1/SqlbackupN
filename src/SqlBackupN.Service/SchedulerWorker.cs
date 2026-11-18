@@ -12,6 +12,7 @@ public sealed class SchedulerWorker(
     IJobStore jobs,
     IHistoryStore history,
     JobRunner runner,
+    MissedRunMonitor missedRuns,
     TimeProvider clock,
     ILogger<SchedulerWorker> logger) : BackgroundService
 {
@@ -42,6 +43,8 @@ public sealed class SchedulerWorker(
         var now = clock.GetUtcNow().UtcDateTime;
         foreach (var job in await jobs.LoadAsync(ct))
         {
+            await missedRuns.CheckAsync(job, now, ct);
+
             // Se lee la última ejecución de cada paso antes de evaluar (el evaluador es síncrono y puro).
             var lastRuns = new Dictionary<Guid, DateTime?>();
             foreach (var step in job.Steps)

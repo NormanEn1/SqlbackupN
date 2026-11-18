@@ -4,7 +4,7 @@ namespace SqlBackupN.Core.Domain;
 public sealed class SqlServerConnection
 {
     /// <summary>Servidor o instancia, p. ej. <c>.\SQL2019</c> o <c>srv01,1433</c>.</summary>
-    public string Server { get; set; } = ".";
+    public string Server { get; set; } = string.Empty;
 
     /// <summary>Si es <c>true</c> usa la identidad de Windows (recomendado).</summary>
     public bool UseWindowsAuthentication { get; set; } = true;
@@ -85,7 +85,7 @@ public sealed class DestinationConfig
 
 /// <summary>
 /// Conexión con Google Drive. Se usa autorización de usuario (OAuth) con el permiso
-/// <c>drive.file</c>: la aplicación solo ve los archivos y carpetas que ella misma crea.
+/// <c>drive</c>: la aplicación puede usar carpetas que ya existen en la cuenta.
 /// Los secretos se guardan cifrados (DPAPI), nunca en texto plano.
 /// </summary>
 public sealed class DriveSettings
@@ -103,8 +103,9 @@ public sealed class DriveSettings
     public string? AccountEmail { get; set; }
 
     /// <summary>
-    /// Carpeta raíz dentro de "Mi unidad" (puede ser una ruta con <c>/</c>). La aplicación la crea si no existe,
-    /// porque con el permiso <c>drive.file</c> no puede ver carpetas creadas a mano.
+    /// Carpeta raíz dentro de "Mi unidad" (puede ser una ruta con <c>/</c>). Si ya existe se reutiliza (la más antigua
+    /// si hay varias con el mismo nombre); si no, la aplicación la crea. Ver carpetas existentes exige el permiso
+    /// completo de Drive; con un token antiguo (<c>drive.file</c>) solo ve las que ella creó.
     /// </summary>
     public string FolderName { get; set; } = "SQL Backup N";
 }
@@ -114,6 +115,19 @@ public sealed class BackupOptions
 {
     /// <summary>Usa <c>WITH COMPRESSION</c>.</summary>
     public bool Compression { get; set; } = true;
+
+    /// <summary>
+    /// Guarda cada backup como un <c>.zip</c> (un zip por base): tras verificar el <c>.bak</c> se comprime en la carpeta
+    /// principal, se borra el <c>.bak</c> y el zip es el archivo que se copia, se sube y se somete a retención.
+    /// </summary>
+    public bool ZipOutput { get; set; }
+
+    /// <summary>
+    /// La carpeta principal es una unidad temporal (p. ej. el disco temporal de una máquina virtual): solo sirve de paso.
+    /// Cuando el archivo (el <c>.zip</c> o, sin zip, el <c>.bak</c>) está completo en TODOS los demás destinos (NAS, Drive…)
+    /// se borra de la carpeta principal, junto con el <c>.bak</c>. Si alguna copia falla no se borra nada. Exige al menos otro destino.
+    /// </summary>
+    public bool TemporaryPrimary { get; set; }
 
     /// <summary>Usa <c>WITH CHECKSUM</c> para detectar corrupción.</summary>
     public bool Checksum { get; set; } = true;
@@ -148,11 +162,78 @@ public sealed class RetentionPolicy
     public int? KeepLast { get; set; }
 }
 
+/// <summary>Forma del cuerpo que se envía al webhook.</summary>
+public enum WebhookFormat
+{
+    /// <summary>Un JSON <c>{"text": "..."}</c> con el aviso en texto (Slack, Teams y servicios parecidos).</summary>
+    Text = 0,
+
+    /// <summary>Un JSON completo con el job, el estado, las bases y el texto (HelpDesk, n8n, Zapier, Make…).</summary>
+    Json = 1,
+
+    /// <summary>Un JSON armado con la plantilla del usuario y valores como <c>{job}</c> o <c>{message}</c>.</summary>
+    Custom = 2
+}
+
+/// <summary>Cómo se autentica el envío al webhook.</summary>
+public enum WebhookAuth
+{
+    /// <summary>Sin autenticación (la URL ya lleva su propia clave, p. ej. Slack o Teams).</summary>
+    None = 0,
+
+    /// <summary>Cabecera <c>Authorization: Bearer &lt;token&gt;</c>.</summary>
+    Bearer = 1,
+
+    /// <summary>Una cabecera con el nombre que se indique (p. ej. <c>x-api-key</c>) y el secreto como valor.</summary>
+    Header = 2
+}
+
+/// <summary>Qué clase de mensaje se envía por el canal de avisos (para que el receptor lo distinga).</summary>
+public enum NoticeKind
+{
+    /// <summary>Resultado de la ejecución de un backup.</summary>
+    Run = 0,
+
+    /// <summary>Aviso de prueba pedido desde el editor.</summary>
+    Test = 1,
+
+    /// <summary>El job lleva demasiadas horas sin ejecutarse.</summary>
+    MissedRun = 2
+}
+
 /// <summary>Cuándo y adónde se envían avisos.</summary>
 public sealed class NotificationSettings
 {
     /// <summary>URL de webhook (Teams, Slack, Telegram vía puente, etc.). Vacío = sin avisos.</summary>
     public string? WebhookUrl { get; set; }
+
+    /// <summary>Forma del cuerpo que se envía.</summary>
+    public WebhookFormat WebhookFormat { get; set; } = WebhookFormat.Text;
+
+    /// <summary>
+    /// Plantilla JSON para <see cref="WebhookFormat.Custom"/>. Valores: <c>{job} {jobId} {status} {type} {server} {machine}
+    /// {message} {summary} {started} {finished} {duration} {event}</c>; se insertan ya escapados para JSON, así que se escriben
+    /// dentro de comillas, p. ej. <c>{"text": "{message}"}</c>.
+    /// </summary>
+    public string? WebhookBodyTemplate { get; set; }
+
+    /// <summary>Cómo se autentica el envío.</summary>
+    public WebhookAuth WebhookAuth { get; set; } = WebhookAuth.None;
+
+    /// <summary>Nombre de la cabecera cuando <see cref="WebhookAuth"/> es <see cref="Domain.WebhookAuth.Header"/>.</summary>
+    public string? WebhookAuthHeader { get; set; }
+
+    /// <summary>Token o clave (cifrado con DPAPI; nunca en texto plano).</summary>
+    public string? ProtectedWebhookSecret { get; set; }
+
+    /// <summary>Cabeceras adicionales, una por línea con el formato <c>Nombre: valor</c> (sin secretos: no van cifradas).</summary>
+    public List<string> WebhookHeaders { get; set; } = new();
+
+    /// <summary>Reintentos si el envío falla por red o por un error temporal del servicio (0–5).</summary>
+    public int WebhookRetries { get; set; } = 2;
+
+    /// <summary>Segundos máximos de espera por cada intento (5–120).</summary>
+    public int WebhookTimeoutSeconds { get; set; } = 15;
 
     /// <summary>Avisar cuando todo sale bien.</summary>
     public bool OnSuccess { get; set; }
@@ -162,6 +243,12 @@ public sealed class NotificationSettings
 
     /// <summary>Avisar cuando hay fallos.</summary>
     public bool OnFailure { get; set; } = true;
+
+    /// <summary>
+    /// Avisar si el job pasa más de estas horas sin ejecutarse (0 = no avisar). Lo detecta el servicio de Windows mientras
+    /// está en marcha; no puede detectar que el propio servicio o el servidor estén apagados.
+    /// </summary>
+    public int MissedRunHours { get; set; }
 
     /// <summary>Indica si un resultado con el estado dado debe generar un aviso.</summary>
     public bool ShouldNotify(RunStatus status) =>

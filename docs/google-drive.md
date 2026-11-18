@@ -17,9 +17,15 @@ Dentro de Drive se organiza igual que en disco: `<carpeta raíz>/<servidor>/<bas
 
 ## Permisos que se piden
 
-Solo **`drive.file`**: la aplicación **únicamente ve los archivos y carpetas que ella misma crea**. No puede leer
-ni modificar el resto de su Drive. Por eso la carpeta raíz se crea desde la aplicación (no puede usar una carpeta
-que usted haya creado a mano).
+**`drive`** (acceso completo a su Drive). Hace falta para **usar una carpeta que ya existe** (por ejemplo la que usaba
+otra herramienta de respaldos): con el permiso limitado `drive.file` la aplicación solo ve lo que ella misma crea, no
+encuentra su carpeta y crearía otra con el mismo nombre. La aplicación solo toca la carpeta indicada: busca
+la carpeta por nombre, sube el archivo, y borra únicamente archivos del **mismo nombre** en esa carpeta (para reemplazar el
+del mismo día) y los que aplique la retención. Si hay varias carpetas con el mismo nombre usa la **más antigua**.
+
+> Las conexiones hechas con la versión anterior (`drive.file`) siguen funcionando, pero **no ven carpetas existentes**:
+> edite el destino y pulse **Conectar con Google** otra vez. En la pantalla de consentimiento de Google Cloud cambie el
+> permiso `.../auth/drive.file` por `.../auth/drive`.
 
 ## Paso a paso
 
@@ -30,16 +36,19 @@ Hay dos cosas distintas, y solo la primera es "técnica":
 
 ### 1. Credenciales de Google (una sola vez)
 
-En el editor del job → pestaña **Destinos → Agregar Google Drive** aparece el recuadro **Credenciales de Google**
+En el editor del job → pestaña **Destinos → Agregar Google Drive** (si aún no hay carpeta principal, se agrega una sola: Drive es siempre una copia) aparece el recuadro **Credenciales de Google**
 con estos mismos pasos y botones para abrir Google Cloud y esta guía. Google exige que cada aplicación tenga su
 propio identificador; es gratis y toma unos minutos:
 
 1. Entre en <https://console.cloud.google.com/> con la cuenta de Google cuyo Drive recibirá los backups
    (o con una cuenta de administración de su Workspace) y **cree un proyecto** (p. ej. «SQL Backup N»).
 2. **APIs y servicios → Biblioteca →** busque **Google Drive API** → **Habilitar**.
-3. **APIs y servicios → Pantalla de consentimiento de OAuth:** tipo de usuario **Externo** (Gmail) o **Interno**
-   (Workspace); complete nombre y correos; en **Permisos** agregue `.../auth/drive.file`; y pase el **estado de
-   publicación a «En producción»** (ver la advertencia de abajo).
+3. **Pantalla de consentimiento de OAuth** (en la consola nueva: **Google Auth Platform**; en la anterior: *APIs y servicios →
+   Pantalla de consentimiento de OAuth*): tipo de usuario **Externo** (Gmail) o **Interno** (Workspace); complete nombre y
+   correos; en **Acceso a los datos / Permisos** agregue `.../auth/drive`; y **una de estas dos cosas** (sin ellas Google
+   responde «Acceso bloqueado… error 403: access_denied»):
+   - **Público / Usuarios de prueba → Agregar usuarios:** escriba **su correo** (el de la cuenta cuyo Drive usará); o
+   - **Publicar la aplicación** («En producción», recomendado: ver la advertencia de abajo).
 4. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth →** tipo
    **Aplicación de escritorio**. Copie el **ID de cliente** y el **Secreto de cliente**.
 5. Péguelos en el recuadro **Credenciales de Google** del editor. Se guardan **cifrados** (DPAPI) una sola vez y
@@ -68,8 +77,9 @@ desde el editor, estas tienen prioridad sobre las incluidas. Las credenciales de
 > ⚠️ **Importante: modo «Prueba» caduca a los 7 días.** Si el estado de publicación de la pantalla de
 > consentimiento es **«Prueba»** y el tipo de usuario es **Externo**, Google **revoca la autorización a los 7 días**
 > y las subidas empezarán a fallar con el aviso «La autorización de Google caducó». Pase la aplicación a
-> **«En producción»** (para el permiso `drive.file` Google no suele exigir verificación; compruebe en su consola
-> si le muestra algún requisito) o use tipo de usuario **Interno** en Workspace. Si ve la pantalla
+> **«En producción»** (el permiso `drive` es «restringido»: sin verificar la aplicación Google la deja usar con un
+> aviso y un tope de 100 usuarios, suficiente para uso propio; compruebe en su consola si le muestra algún requisito)
+> o use tipo de usuario **Interno** en Workspace. Si ve la pantalla
 > «Google no ha verificado esta aplicación», es normal en aplicaciones propias: **Avanzado → Ir a SQL Backup N**.
 
 ## Seguridad
@@ -91,6 +101,7 @@ desde el editor, estas tienen prioridad sobre las incluidas. Las credenciales de
 | «No hay espacio disponible en Google Drive» | La cuenta alcanzó su cuota. Libere espacio, amplíe el plan o reduzca la retención |
 | «Google no devolvió un token de actualización» | Quite el acceso de «SQL Backup N» en myaccount.google.com/permissions y conecte otra vez |
 | «Google Drive recibió un archivo distinto… (MD5)» | La copia llegó dañada y se descartó. Reintente; si se repite, revise la red |
+| **«Acceso bloqueado: … no completó el proceso de verificación de Google»** (error 403: `access_denied`) | El proyecto está en modo **«Prueba»** y su correo no está entre los **usuarios de prueba**. En Google Cloud: *Google Auth Platform → Público (Audience) → Usuarios de prueba → Agregar* su correo y guardar; o *Publicar la aplicación*. Después vuelva a pulsar «Conectar con Google». La aplicación no puede detectar esta pantalla (Google no redirige de vuelta), así que esperará hasta 5 minutos |
 | `invalid_client` / `redirect_uri_mismatch` | El ID o el secreto están mal copiados, o el tipo de credencial no es «Aplicación de escritorio». Corríjalos en el recuadro «Credenciales de Google» |
 | «Faltan las credenciales de Google» | Configúrelas una sola vez en el recuadro «Credenciales de Google» (pestaña Destinos) |
 | El navegador no se abre al conectar | Ábralo a mano con la dirección que muestre el sistema, o ejecute la interfaz con un usuario con sesión interactiva (conectar requiere un navegador; las subidas posteriores no) |

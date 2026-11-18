@@ -13,6 +13,7 @@
             <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility"/>
             <local:NotEmptyToVisibilityConverter x:Key="NotEmptyToVisibility"/>
             <local:FieldMessageConverter x:Key="FieldMessage"/>
+            <local:NullToCollapsedConverter x:Key="NullToCollapsed"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -20,8 +20,9 @@ public class JobValidatorTests
         Notifications = new NotificationSettings { WebhookUrl = "https://hooks.example.test/aviso" }
     };
 
+    /// <summary>Problemas que impiden guardar: datos incorrectos (Error) y datos que faltan (Missing).</summary>
     private static IReadOnlyList<ValidationIssue> Errors(BackupJob job, params string[] others) =>
-        JobValidator.Validate(job, others).Where(i => i.Severity == IssueSeverity.Error).ToList();
+        JobValidator.Validate(job, others).Where(i => i.Severity != IssueSeverity.Warning).ToList();
 
     private static void AssertError(BackupJob job, string field) =>
         Assert.Contains(Errors(job), i => i.Field == field);
@@ -33,11 +34,11 @@ public class JobValidatorTests
     }
 
     [Fact]
-    public void New_job_only_lacks_a_name_and_a_destination()
+    public void New_job_only_lacks_a_server_a_name_and_a_destination()
     {
         var fields = Errors(JobFactory.CreateNew()).Select(e => e.Field).Distinct().Order().ToList();
 
-        Assert.Equal(["Destinations", "Name"], fields);
+        Assert.Equal(["Connection.Server", "Destinations", "Name"], fields);
     }
 
     // ------------------------------------------------------------- General

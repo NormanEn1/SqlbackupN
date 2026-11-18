@@ -66,7 +66,7 @@ si se deja en blanco al editar, se conserva la ya cifrada.
 ## Destinos remotos (Google Drive)
 
 Un destino remoto implementa `IRemoteStorage` (subir, listar, borrar, probar). Hoy hay una implementación,
-`GoogleDriveStorage` (API oficial de Drive, permiso `drive.file`). Reglas del diseño:
+`GoogleDriveStorage` (API oficial de Drive, permiso `drive`: puede usar carpetas que ya existen). Reglas del diseño:
 
 - **SQL Server nunca escribe en la nube**: el backup va primero a una carpeta (destino principal) y `JobRunner`
   sube la copia desde allí. Por eso un destino remoto no puede ser el principal (lo exige `JobValidator`).
@@ -96,7 +96,11 @@ Un destino remoto implementa `IRemoteStorage` (subir, listar, borrar, probar). H
    1. `IBackupExecutor.ListDatabasesAsync` → `DatabaseResolver.Resolve` decide las bases.
    2. Por cada base: `PathTemplate.Render` arma la ruta → SQL Server escribe el backup en el destino
       primario → `VerifyAsync` → copia a los demás destinos (carpeta o Google Drive) → `RetentionPlanner` + borrado.
-   3. Se guarda un `JobRunRecord` (`IHistoryStore`) y, si corresponde, se notifica (`INotifier`).
+   3. Si corresponde se notifica (`INotifier`, con reintentos) y el resultado del aviso se anota en el registro; después se guarda el `JobRunRecord` (`IHistoryStore`).
+   El cuerpo lo arma `WebhookPayload` (texto, JSON completo o plantilla propia) y el envío, con cabeceras, autenticación, tiempo de espera y reintentos, lo hace `WebhookNotifier`; el token se guarda cifrado (`ISecretProtector`).
+   Aparte, `MissedRunMonitor` (que usa el servicio en cada ciclo) avisa si un job lleva demasiadas horas sin ejecutarse (`INotifier.SendMessageAsync`).
+   Durante todo el flujo, cada paso se anota en `JobRunRecord.Log` (`RunLogEntry`) y se informa en vivo por el
+   `IProgress<RunLogEntry>` opcional de `RunStepAsync` (la GUI lo muestra en la ventana «Registro de ejecución», vía `IDialogService.ShowRunLog`; el CLI, en el error estándar).
 
 ## Decisiones de diseño
 
@@ -112,6 +116,8 @@ Un destino remoto implementa `IRemoteStorage` (subir, listar, borrar, probar). H
   retención es *advertencia* (el backup existe), no *fallo*.
 - **El destino primario lo escribe SQL Server**, por lo que la ruta debe ser válida *para el servidor SQL*
   (en instancias remotas, una ruta UNC accesible por la cuenta del servicio de SQL Server).
+- **Registro paso a paso.** El núcleo no sabe quién lo mira: solo informa por `IProgress<RunLogEntry>` y guarda las líneas en el
+  historial. Un receptor que falla nunca interrumpe un backup, y los mensajes no incluyen contraseñas ni tokens.
 - **Datos en archivos JSON** (`jobs.json`, `history.jsonl`) en `%ProgramData%\Centinela\SqlBackupN`:
   editables, versionables y sin dependencia de una base de datos. El historial es *append-only* para que
   servicio, CLI y GUI escriban a la vez sin pisarse.

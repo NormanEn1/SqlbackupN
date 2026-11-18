@@ -44,8 +44,22 @@
     <SolidColorBrush x:Key="SidebarSelectedBrush" Color="#1E3A8A"/>
     <SolidColorBrush x:Key="SidebarMutedBrush" Color="#94A3B8"/>
 
+    <!-- Estados de interacción y detalles (también cambian con el modo oscuro) -->
+    <SolidColorBrush x:Key="HoverBrush" Color="#F1F5F9"/>
+    <SolidColorBrush x:Key="HoverBrush2" Color="#E2E8F0"/>
+    <SolidColorBrush x:Key="FocusRingBrush" Color="#93C5FD"/>
+    <SolidColorBrush x:Key="GhostHoverBrush" Color="#E8EDF5"/>
+    <SolidColorBrush x:Key="GhostPressedBrush" Color="#D9E1EE"/>
+    <SolidColorBrush x:Key="TabHoverBrush" Color="#E9EEF6"/>
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#CBD5E1"/>
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#94A3B8"/>
+    <SolidColorBrush x:Key="ScrollThumbPressedBrush" Color="#64748B"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#60A5FA"/>
+    <SolidColorBrush x:Key="PrimaryBorderBrush" Color="#BFDBFE"/>
+
     <!-- Tipografía -->
     <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas</FontFamily>
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
     <!-- Sombra suave de las tarjetas -->
@@ -56,30 +70,37 @@
     <Style x:Key="Heading" TargetType="TextBlock">
         <Setter Property="FontSize" Value="22"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
     </Style>
     <Style x:Key="SectionTitle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+    </Style>
+    <!-- Título de un grupo dentro de una pestaña (separa «Qué se guarda», «Comprobación», «Archivo final»…) -->
+    <Style x:Key="GroupTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="Margin" Value="0,30,0,0"/>
     </Style>
     <Style x:Key="Muted" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
     <Style x:Key="FieldLabel" TargetType="TextBlock">
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Margin" Value="0,14,0,5"/>
     </Style>
     <Style x:Key="Hint" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="Margin" Value="0,4,0,0"/>
     </Style>
     <Style x:Key="FieldError" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="Margin" Value="0,4,0,0"/>
@@ -90,7 +111,11 @@
         </Style.Triggers>
     </Style>
     <Style x:Key="FieldWarning" TargetType="TextBlock" BasedOn="{StaticResource FieldError}">
-        <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+    </Style>
+    <!-- Dato que todavía falta por rellenar: tono neutro, no es un error del usuario -->
+    <Style x:Key="PendingNote" TargetType="TextBlock" BasedOn="{StaticResource FieldError}">
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
     </Style>
     <Style x:Key="IconText" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>

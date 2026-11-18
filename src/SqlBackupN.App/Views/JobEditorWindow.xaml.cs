@@ -26,6 +26,12 @@ public partial class JobEditorWindow : Window
         if (DataContext is JobEditorViewModel vm) vm.Password = ((PasswordBox)sender).Password;
     }
 
+    /// <summary>Traslada el token del webhook al editor (un <see cref="PasswordBox"/> no admite enlace de datos).</summary>
+    private void WebhookSecret_Changed(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is JobEditorViewModel vm) vm.WebhookSecret = ((PasswordBox)sender).Password;
+    }
+
     /// <summary>Traslada el secreto de cliente de Google al editor (se guarda una sola vez, cifrado).</summary>
     private void GoogleSecret_Changed(object sender, RoutedEventArgs e)
     {

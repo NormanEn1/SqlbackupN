@@ -13,6 +13,7 @@ public class MainViewModelTests
     private static BackupJob Job(string name) => new()
     {
         Name = name,
+        Connection = new SqlServerConnection { Server = "srv01" },
         Steps = [new BackupStep { Type = BackupType.Full, Cron = "0 23 * * *" }],
         Destinations = [new DestinationConfig { Name = "Local", Path = @"D:\Backups" }]
     };
@@ -48,6 +49,7 @@ public class MainViewModelTests
         var rig = Create();
         rig.Dialogs.OnEdit = editor =>
         {
+            editor.Server = "srv01";
             editor.Name = "Ventas";
             editor.AddDestinationCommand.Execute(null);
             editor.Destinations[0].Path = @"D:\Backups";

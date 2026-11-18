@@ -57,26 +57,31 @@ public class JobEditorViewModelTests
     }
 
     [Fact]
-    public void New_job_starts_with_errors_and_cannot_be_saved()
+    public void New_job_starts_incomplete_with_nothing_in_red_and_cannot_be_saved()
     {
         var editor = Create(JobFactory.CreateNew(), isNew: true).Editor;
 
         Assert.False(editor.CanSave);
-        Assert.True(editor.Errors.ContainsKey("Name"));
-        Assert.True(editor.Errors.ContainsKey("Destinations"));
         Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.Equal("Nuevo job", editor.Title);
+        // Lo que aún no se ha rellenado es "pendiente", no un error del usuario.
+        Assert.Equal(0, editor.ErrorCount);
+        Assert.Equal(3, editor.MissingCount);   // servidor, nombre y destino
+        Assert.Empty(editor.Errors);
+        Assert.True(editor.Pending.ContainsKey("Name"));
+        Assert.True(editor.Pending.ContainsKey("Destinations"));
     }
 
     [Fact]
-    public void Fixing_a_field_clears_its_error_immediately()
+    public void Filling_a_missing_field_clears_its_pending_note_immediately()
     {
         var editor = Create(JobFactory.CreateNew(), isNew: true).Editor;
 
         editor.Name = "Compras";
 
-        Assert.False(editor.Errors.ContainsKey("Name"));
-        Assert.True(editor.Errors.ContainsKey("Destinations"));
+        Assert.DoesNotContain(editor.Issues, i => i.Area == "General");
+        Assert.Contains(editor.Issues, i => i.Area == "Destinos" && i.IsMissing);
+        Assert.Equal(2, editor.MissingCount);   // servidor y destino
     }
 
     [Fact]
@@ -84,6 +89,7 @@ public class JobEditorViewModelTests
     {
         var editor = Create(JobFactory.CreateNew(), isNew: true).Editor;
 
+        editor.Server = "srv01";
         editor.Name = "Compras";
         editor.AddDestinationCommand.Execute(null);
         editor.Destinations[0].Path = @"D:\Backups";
@@ -123,11 +129,16 @@ public class JobEditorViewModelTests
     {
         var editor = Create().Editor;
         Assert.Equal("ok", editor.SummaryKind);
+        Assert.Equal("✔", editor.SummaryIcon);
 
         editor.WebhookUrl = "";
         Assert.Equal("warning", editor.SummaryKind);
 
-        editor.Name = "";
+        editor.Name = "";   // falta un dato: pendiente, no error
+        Assert.Equal("pending", editor.SummaryKind);
+        Assert.Equal("○", editor.SummaryIcon);
+
+        editor.Server = "srv;x";   // un dato incorrecto sí es un error
         Assert.Equal("error", editor.SummaryKind);
         Assert.Equal("✖", editor.SummaryIcon);
     }
@@ -219,10 +230,12 @@ public class JobEditorViewModelTests
 
         Assert.False(editor.IsAllDatabases);
         Assert.True(editor.IsExplicitDatabases);
-        Assert.True(editor.Errors.ContainsKey("Databases.Names"));
+        Assert.True(editor.Pending.ContainsKey("Databases.Names"));
+        Assert.False(editor.Errors.ContainsKey("Databases.Names"));   // falta indicarlas, no es un error
 
         editor.NamesText = "Ventas\r\nCompras";
-        Assert.False(editor.Errors.ContainsKey("Databases.Names"));
+        Assert.False(editor.Pending.ContainsKey("Databases.Names"));
+        Assert.True(editor.CanSave);
     }
 
     [Fact]
@@ -278,16 +291,18 @@ public class JobEditorViewModelTests
     }
 
     [Fact]
-    public void Removing_every_destination_is_an_error_and_adding_one_asks_for_a_path()
+    public void Removing_every_destination_makes_one_pending_and_adding_one_asks_for_its_path()
     {
         var editor = Create().Editor;
 
         while (editor.Destinations.Count > 0) editor.Destinations[0].RemoveCommand.Execute(null);
-        Assert.True(editor.Errors.ContainsKey("Destinations"));
+        Assert.True(editor.Pending.ContainsKey("Destinations"));
+        Assert.False(editor.Errors.ContainsKey("Destinations"));
 
         editor.AddDestinationCommand.Execute(null);
         Assert.Single(editor.Destinations);
-        Assert.NotEmpty(editor.Destinations[0].PathError);
+        Assert.NotEmpty(editor.Destinations[0].PathPending);
+        Assert.Equal(string.Empty, editor.Destinations[0].PathError);
     }
 
     [Fact]
@@ -460,7 +475,7 @@ public class JobEditorViewModelTests
         var rig = Create();
         rig.Editor.UseWindowsAuthentication = false;
         rig.Editor.UserName = "backup_user";
-        Assert.True(rig.Editor.Errors.ContainsKey("Connection.Password"));
+        Assert.Contains(rig.Editor.Issues, i => i.IsMissing && i.Area == "Servidor");
 
         rig.Editor.Password = "S3creta!";
         rig.Editor.SaveCommand.Execute(null);
@@ -505,5 +520,19 @@ public class JobEditorViewModelTests
         var connection = editor.Result!.Connection;
         Assert.Null(connection.UserName);
         Assert.Null(connection.ProtectedPassword);
+    }
+
+    [Fact]
+    public void The_quick_name_templates_fill_in_the_template_and_the_default_restores_the_original()
+    {
+        var editor = Create().Editor;
+        var original = editor.NameTemplate;
+
+        editor.SetNameTemplateCommand.Execute("Backup{Date}_{Database}");
+        Assert.Equal("Backup{Date}_{Database}", editor.NameTemplate);
+
+        editor.SetNameTemplateCommand.Execute("default");
+        Assert.Equal(new BackupOptions().PathTemplate, editor.NameTemplate);
+        Assert.Equal(original, editor.NameTemplate);   // un job nuevo trae la plantilla predeterminada
     }
 }

@@ -32,7 +32,8 @@ public class JobRunnerTests
         public List<string> Copies { get; } = [];
         public List<string> Deleted { get; } = [];
         public bool FailCopy { get; set; }
-        public void EnsureDirectory(string path) { }
+        public void CreateZip(string sourceFile, string zipPath) { }
+    public void EnsureDirectory(string path) { }
         public void VerifyWritable(string directory) { }
         public void Copy(string source, string destination)
         {
@@ -50,6 +51,8 @@ public class JobRunnerTests
         public Task AppendAsync(JobRunRecord record, CancellationToken ct = default) { Records.Add(record); return Task.CompletedTask; }
         public Task<IReadOnlyList<JobRunRecord>> GetRecentAsync(Guid? jobId, int max, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<JobRunRecord>>(Records);
+        public Task<int> DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<int> ClearAsync(Guid? jobId, CancellationToken ct = default) => Task.FromResult(0);
         public Task<DateTime?> GetLastRunUtcAsync(Guid jobId, Guid stepId, CancellationToken ct = default) =>
             Task.FromResult<DateTime?>(null);
     }
@@ -58,6 +61,7 @@ public class JobRunnerTests
     {
         public int Calls { get; private set; }
         public Task NotifyAsync(BackupJob job, JobRunRecord record, CancellationToken ct) { Calls++; return Task.CompletedTask; }
+        public Task SendMessageAsync(NotificationSettings settings, NoticeKind kind, string message, CancellationToken ct) => Task.CompletedTask;
     }
 
     private static BackupJob NewJob(int destinations = 1) => new()

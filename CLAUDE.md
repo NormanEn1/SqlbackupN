@@ -16,7 +16,7 @@ dotnet run --project src/SqlBackupN.Cli -- jobs
 - Lógica en `SqlBackupN.Core/Services` como funciones puras; I/O solo en `Infrastructure` tras una interfaz de `Abstractions`.
 - Validación de datos de un job: solo en `JobValidator` (+ `docs/validation.md` + pruebas). Los view-models
   (`SqlBackupN.Presentation`) no referencian WPF; las ventanas (`SqlBackupN.App`) no tienen lógica.
-- Interfaz: colores, tipografía y estilos solo en `Styles/Theme.xaml` y `Styles/Controls.xaml` (ver `docs/design.md`); nada de colores sueltos en las ventanas.
+- Interfaz: colores, tipografía y estilos solo en `Styles/Theme.xaml` (claro), `Styles/Theme.Dark.xaml` (oscuro, mismas claves) y `Styles/Controls.xaml` (ver `docs/design.md`); nada de colores sueltos en las ventanas, y los pinceles se usan con `DynamicResource` para que cambien con el modo oscuro (una prueba lo comprueba).
 - Capturas: `tools/Capture-Screenshots.ps1`. El `.gitignore` desbloquea `SqlBackupN.App` (el patrón `*.app` lo ocultaba).
 - Nube (Google Drive): solo vía `IRemoteStorage`/`IGoogleAuthorizer`; el destino principal es siempre una carpeta; tokens y secretos cifrados.
 - T-SQL solo vía `BackupSqlBuilder`; nunca concatenar texto de usuario. Nunca guardar/loguear contraseñas.

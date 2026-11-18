@@ -22,6 +22,13 @@ public sealed class WpfDialogService : IDialogService
     }
 
     /// <inheritdoc />
+    public void ShowRunLog(RunLogViewModel log)
+    {
+        // No modal: se puede seguir usando la ventana principal y dejar el registro abierto mientras corre el backup.
+        new RunLogWindow { DataContext = log, Owner = Application.Current.MainWindow }.Show();
+    }
+
+    /// <inheritdoc />
     public bool Confirm(string title, string message) =>
         MessageBox.Show(Application.Current.MainWindow, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question,
             MessageBoxResult.No) == MessageBoxResult.Yes;

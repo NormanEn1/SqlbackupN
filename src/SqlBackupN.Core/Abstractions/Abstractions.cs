@@ -108,6 +108,12 @@ public interface IFileStore
     /// <summary>Copia un archivo sobrescribiendo el destino.</summary>
     void Copy(string source, string destination);
 
+    /// <summary>
+    /// Crea un <c>.zip</c> con un solo archivo dentro (con el mismo nombre del original). Si algo falla no deja un zip a medias.
+    /// No borra el original.
+    /// </summary>
+    void CreateZip(string sourceFile, string zipPath);
+
     /// <summary>Borra un archivo.</summary>
     void Delete(string path);
 
@@ -128,11 +134,27 @@ public interface IJobStore
     Task SaveAsync(IEnumerable<BackupJob> jobs, CancellationToken ct = default);
 }
 
+/// <summary>Guarda las preferencias del usuario de la interfaz (modo claro/oscuro…).</summary>
+public interface IUserSettingsStore
+{
+    /// <summary>Lee las preferencias; si no existen o están dañadas devuelve las predeterminadas (nunca lanza).</summary>
+    UserSettings Load();
+
+    /// <summary>Guarda las preferencias.</summary>
+    void Save(UserSettings settings);
+}
+
 /// <summary>Persistencia del historial de ejecuciones.</summary>
 public interface IHistoryStore
 {
     /// <summary>Agrega un registro al historial.</summary>
     Task AppendAsync(JobRunRecord record, CancellationToken ct = default);
+
+    /// <summary>Borra del historial las ejecuciones con esos identificadores. Devuelve cuántas se borraron.</summary>
+    Task<int> DeleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
+    /// <summary>Borra el historial de un job (o de todos los jobs si <paramref name="jobId"/> es <c>null</c>). Devuelve cuántas ejecuciones se borraron.</summary>
+    Task<int> ClearAsync(Guid? jobId, CancellationToken ct = default);
 
     /// <summary>Devuelve los registros más recientes primero, opcionalmente de un solo job.</summary>
     Task<IReadOnlyList<JobRunRecord>> GetRecentAsync(Guid? jobId, int max, CancellationToken ct = default);
@@ -144,8 +166,18 @@ public interface IHistoryStore
 /// <summary>Envía avisos sobre el resultado de una ejecución.</summary>
 public interface INotifier
 {
-    /// <summary>Notifica el resultado. Las implementaciones no deben lanzar por fallos de red.</summary>
+    /// <summary>Notifica el resultado de una ejecución. Lanza si no se pudo entregar (el llamador lo registra).</summary>
     Task NotifyAsync(BackupJob job, JobRunRecord record, CancellationToken ct);
+
+    /// <summary>
+    /// Envía un mensaje cualquiera por el canal configurado (aviso de prueba, job que no se ejecuta…).
+    /// Lanza con el motivo si no se pudo entregar.
+    /// </summary>
+    /// <param name="settings">Canal (webhook, formato, autenticación…).</param>
+    /// <param name="kind">Qué clase de mensaje es.</param>
+    /// <param name="message">Texto del mensaje.</param>
+    /// <param name="ct">Cancelación.</param>
+    Task SendMessageAsync(NotificationSettings settings, NoticeKind kind, string message, CancellationToken ct);
 }
 
 /// <summary>Protege secretos (contraseñas) en reposo.</summary>

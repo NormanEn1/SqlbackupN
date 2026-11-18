@@ -16,7 +16,7 @@ namespace SqlBackupN.Core.Infrastructure;
 
 /// <summary>
 /// Destino remoto en Google Drive mediante su API oficial. No usa la unidad virtual <c>G:\</c>, así que
-/// funciona desde un servicio de Windows sin sesión de usuario. Permiso <c>drive.file</c>: solo ve lo que crea.
+/// funciona desde un servicio de Windows sin sesión de usuario. Permiso <c>drive</c>: puede usar carpetas que ya existen.
 /// </summary>
 public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClientProvider clients) : IRemoteStorage
 {
@@ -61,6 +61,9 @@ public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClient
                 throw new IOException(
                     "Google Drive recibió un archivo distinto del original (la suma MD5 no coincide); se descartó la copia.");
             }
+
+            // Ya verificada la nueva copia: los archivos del mismo nombre en esa carpeta (p. ej. el zip del mismo día) se reemplazan.
+            await ReplaceSameNameAsync(service, parentId, fileName, uploaded.Id, ct);
         }
         catch (Exception ex) when (ex is TokenResponseException or GoogleApiException)
         {
@@ -177,7 +180,7 @@ public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClient
                 ClientId = client.ClientId,
                 ClientSecret = client.ClientSecret
             },
-            Scopes = [DriveService.Scope.DriveFile]
+            Scopes = [DriveService.Scope.Drive]
         });
 
         // Solo se guarda el token de actualización; la biblioteca obtiene el de acceso cuando hace falta.
@@ -201,6 +204,7 @@ public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClient
             var list = service.Files.List();
             list.Q = $"mimeType='{FolderMime}' and name='{DrivePath.EscapeQuery(segment)}' " +
                      $"and '{parent}' in parents and trashed=false";
+            list.OrderBy = "createdTime";   // si hay carpetas repetidas, se usa la más antigua (la original)
             list.Fields = "files(id)";
             list.PageSize = 1;
 
@@ -218,6 +222,25 @@ public sealed class GoogleDriveStorage(ISecretProtector protector, IGoogleClient
             parent = (await request.ExecuteAsync(ct)).Id;
         }
         return parent;
+    }
+
+    /// <summary>Borra los archivos con el mismo nombre en la carpeta, salvo el recién subido (mejor esfuerzo).</summary>
+    private static async Task ReplaceSameNameAsync(
+        DriveService service, string parentId, string fileName, string keepId, CancellationToken ct)
+    {
+        try
+        {
+            var list = service.Files.List();
+            list.Q = $"name='{DrivePath.EscapeQuery(fileName)}' and '{parentId}' in parents " +
+                     $"and trashed=false and mimeType!='{FolderMime}'";
+            list.Fields = "files(id)";
+            foreach (var old in (await list.ExecuteAsync(ct)).Files.Where(f => f.Id != keepId))
+                await service.Files.Delete(old.Id).ExecuteAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // La copia nueva ya está verificada: no poder limpiar la anterior no debe invalidar la subida.
+        }
     }
 
     private static async Task<string> Md5Async(string path, CancellationToken ct)
@@ -262,13 +285,23 @@ public sealed class GoogleAuthorizer : IGoogleAuthorizer
         var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
         {
             ClientSecrets = new ClientSecrets { ClientId = clientId, ClientSecret = clientSecret },
-            Scopes = [DriveService.Scope.DriveFile],
+            Scopes = [DriveService.Scope.Drive],
             DataStore = new MemoryDataStore(),   // los tokens no se guardan en disco: lo hace la aplicación, cifrados
             Prompt = "consent"                   // fuerza que Google devuelva el token de actualización
         });
 
         var app = new AuthorizationCodeInstalledApp(flow, new LocalServerCodeReceiver(ClosePage));
-        var credential = await app.AuthorizeAsync("sqlbackupn", ct);
+        UserCredential credential;
+        try
+        {
+            credential = await app.AuthorizeAsync("sqlbackupn", ct);
+        }
+        catch (TokenResponseException ex) when (ex.Error?.Error == "access_denied")
+        {
+            throw new InvalidOperationException(
+                "Google denegó el acceso. Si la aplicación está en modo «Prueba», agregue su correo como «usuario de prueba» " +
+                "en Google Cloud (o publique la aplicación); también ocurre si se pulsa «Cancelar» en la pantalla de Google.", ex);
+        }
 
         var refresh = credential.Token.RefreshToken
             ?? throw new InvalidOperationException(

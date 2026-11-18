@@ -1,0 +1,56 @@
+<Window x:Class="SqlBackupN.App.Views.RunLogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding Title}" Icon="pack://application:,,,/Assets/app.ico" Foreground="{DynamicResource TextBrush}" Background="{DynamicResource AppBackgroundBrush}" Width="860" Height="560" MinWidth="520" MinHeight="320"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="True">
+    <Grid Background="{DynamicResource AppBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ================= Encabezado ================= -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrushSoft}" BorderThickness="0,0,0,1">
+            <DockPanel Margin="24,16">
+                <Border DockPanel.Dock="Right" Style="{StaticResource StatusChip}" VerticalAlignment="Center"
+                        Margin="16,0,0,0" MaxWidth="360">
+                    <TextBlock Text="{Binding Subtitle}" Style="{StaticResource StatusChipText}" TextWrapping="Wrap"/>
+                </Border>
+                <TextBlock Text="{Binding Title}" Style="{StaticResource Heading}" FontSize="18"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
+        </Border>
+
+        <!-- ================= Registro ================= -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="20,16,20,0">
+            <ScrollViewer x:Name="LogScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Lines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="62"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Time}" Style="{StaticResource RunLogLine}"
+                                           Foreground="{DynamicResource MutedBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Text}" Style="{StaticResource RunLogLine}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ================= Pie ================= -->
+        <DockPanel Grid.Row="2" Margin="20,12,20,16">
+            <Button DockPanel.Dock="Right" Tag="&#xE711;" Content="Cerrar" IsCancel="True" MinWidth="110"
+                    Click="Close_Click"/>
+            <Button DockPanel.Dock="Right" Tag="&#xE8C8;" Content="Copiar" Margin="0,0,10,0" MinWidth="110"
+                    Click="Copy_Click" ToolTip="Copia todo el registro al portapapeles"/>
+            <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" Text="Puede dejar esta ventana abierta mientras el backup corre."/>
+        </DockPanel>
+    </Grid>
+</Window>

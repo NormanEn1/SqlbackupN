@@ -40,7 +40,7 @@ antes de saltársela.
    como `PasswordBox`).
 8. Los comandos asíncronos usan `AsyncRelayCommand` (nunca `async void` propio): captura las excepciones
    para que un fallo no cierre la aplicación.
-9. El aspecto visual sale de `Styles/Theme.xaml` y `Styles/Controls.xaml` (ver [design.md](design.md)): las ventanas no definen colores ni tipografías propias.
+9. El aspecto visual sale de `Styles/Theme.xaml`, `Styles/Theme.Dark.xaml` y `Styles/Controls.xaml` (ver [design.md](design.md)): las ventanas no definen colores ni tipografías propias. Los pinceles del tema se usan con `DynamicResource` (con `StaticResource` no cambiarían al pasar a oscuro); un color nuevo se define en los dos temas.
 10. Todo campo editable muestra su error junto al control y en el resumen; el botón *Guardar* se desactiva con errores.
 
 ## 4. Pruebas

@@ -23,7 +23,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGoogleAuthorizer, GoogleAuthorizer>();
         services.AddSingleton<IJobStore>(_ => new JsonJobStore());
         services.AddSingleton<IHistoryStore>(_ => new JsonHistoryStore());
-        services.AddSingleton<INotifier, WebhookNotifier>();
+        services.AddSingleton<IUserSettingsStore>(_ => new JsonUserSettingsStore());
+        services.AddSingleton<INotifier>(sp => new WebhookNotifier(sp.GetRequiredService<ISecretProtector>()));
+        services.AddSingleton<MissedRunMonitor>();
         services.AddSingleton<JobRunner>();
         return services;
     }

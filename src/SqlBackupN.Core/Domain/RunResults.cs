@@ -71,6 +71,9 @@ public sealed class JobRunRecord
     /// <summary>Detalle por base de datos.</summary>
     public List<DatabaseBackupResult> Results { get; set; } = new();
 
+    /// <summary>Registro paso a paso de la ejecución, en orden cronológico.</summary>
+    public List<RunLogEntry> Log { get; set; } = new();
+
     /// <summary>Calcula el estado agregado a partir de los resultados por base.</summary>
     public static RunStatus Aggregate(IReadOnlyCollection<DatabaseBackupResult> results)
     {
@@ -79,4 +82,33 @@ public sealed class JobRunRecord
         if (results.Any(r => r.Status == RunStatus.Warning)) return RunStatus.Warning;
         return RunStatus.Succeeded;
     }
+}
+
+/// <summary>Gravedad de una línea del registro de ejecución.</summary>
+public enum RunLogLevel
+{
+    /// <summary>Avance normal.</summary>
+    Info = 0,
+
+    /// <summary>Algo secundario falló o no se hizo (el backup puede existir).</summary>
+    Warning = 1,
+
+    /// <summary>Algo importante falló.</summary>
+    Error = 2
+}
+
+/// <summary>Una línea del registro paso a paso de una ejecución.</summary>
+public sealed class RunLogEntry
+{
+    /// <summary>Momento en que ocurrió (UTC).</summary>
+    public DateTime TimeUtc { get; set; }
+
+    /// <summary>Gravedad.</summary>
+    public RunLogLevel Level { get; set; }
+
+    /// <summary>Base de datos a la que se refiere, o <c>null</c> si es de toda la ejecución.</summary>
+    public string? Database { get; set; }
+
+    /// <summary>Texto para mostrar al usuario (nunca contiene contraseñas).</summary>
+    public string Message { get; set; } = string.Empty;
 }
